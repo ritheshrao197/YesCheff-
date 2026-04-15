@@ -1,7 +1,6 @@
-// OrderSystem.cs
-// Contains the Order data class and the OrderManager that drives order lifecycle.
+// OrderManager.cs
+// Creates, tracks, fulfils, and respawns orders for customer windows.
 
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,10 +9,6 @@ using YesChef.Ingredients;
 
 namespace YesChef.Orders
 {
-
-    // ══════════════════════════════════════════════════════════════════════
-    // OrderManager — creates, tracks and expires orders
-    // ══════════════════════════════════════════════════════════════════════
     public class OrderManager : MonoBehaviour
     {
         private const int DefaultMaxWindows = 4;
@@ -24,21 +19,13 @@ namespace YesChef.Orders
         private const int DefaultMaxIngredientsPerOrder = 2;
         private const float DefaultMinIngredientCountChance = 0.5f;
 
-        // ── Events ────────────────────────────────────────────────────────
-        public static event Action<Order, int> OnOrderCompleted;   // order, score delta
-        public static event Action<Order, int> OnOrderAssigned;    // order, window index
-        public static event Action<int> OnWindowCleared;    // window index
-
-        // ── Inspector ─────────────────────────────────────────────────────
         [Tooltip("All ingredient definitions used to generate orders.")]
-        public IngredientRegistry ingredientRegistry;
-
+        [SerializeField] private IngredientRegistry ingredientRegistry;
         [SerializeField] private GameConfig gameConfig;
 
-        // ── State ─────────────────────────────────────────────────────────
-        private Order[] _windowOrders;   // index = window slot
-        private int _nextOrderId = 0;
-        private bool _isRunning = false;
+        private Order[] _windowOrders;
+        private int _nextOrderId;
+        private bool _isRunning;
 
         private int MaxWindows => gameConfig != null ? gameConfig.systems.orders.maxWindows : DefaultMaxWindows;
         private float RespawnDelay => gameConfig != null ? gameConfig.systems.orders.respawnDelay : DefaultRespawnDelay;
@@ -48,7 +35,6 @@ namespace YesChef.Orders
         private int MaxIngredientsPerOrder => gameConfig != null ? gameConfig.systems.orders.maxIngredientsPerOrder : DefaultMaxIngredientsPerOrder;
         private float MinIngredientCountChance => gameConfig != null ? gameConfig.systems.orders.minIngredientCountChance : DefaultMinIngredientCountChance;
 
-        // ── Unity lifecycle ───────────────────────────────────────────────
         private void Awake()
         {
             if (gameConfig == null)
@@ -59,83 +45,137 @@ namespace YesChef.Orders
             _windowOrders = new Order[MaxWindows];
         }
 
-        // ── Public API ────────────────────────────────────────────────────
         public void StartOrders()
         {
+            ResetOrders();
             _isRunning = true;
             GameLogger.Info(GameLogCategory.Orders, $"Starting order flow for {MaxWindows} windows.", this);
-            // Spawn all 4 orders immediately
-            // for (int i = 0; i < maxWindows; i++)
-            // {
-            //     SpawnOrder(i);
-            // }
-            StartCoroutine(StartOrdersWithDelay());
+            StartCoroutine(SpawnInitialOrders());
         }
-        IEnumerator StartOrdersWithDelay()
-        {
-            for (int i = 0; i < _windowOrders.Length; i++)
-            {
-                SpawnOrder(i);
-                yield return new WaitForSeconds(UnityEngine.Random.Range(InitialSpawnDelayMin, InitialSpawnDelayMax));
-            }
-        }
-        /// <summary>
-        /// Stops the order flow, preventing new orders from spawning and clearing any pending respawns. Existing orders will remain active until completed or expired, but no new orders will be generated. This is typically called when the game ends to freeze the order state.
-        /// </summary>
+
         public void StopOrders()
         {
             _isRunning = false;
             StopAllCoroutines();
             GameLogger.Info(GameLogCategory.Orders, "Stopped order flow and cleared pending respawns.", this);
         }
-        /// <summary>
-        /// Returns the current order assigned to the specified window index, or null if the slot is empty or the index is out of range. This is used by CustomerWindow to display the order details and check for fulfilment. The Order object contains all the information about required and fulfilled ingredients, as well as timing for score calculation.
-        /// </summary>
-        /// <param name="windowIndex"></param>
-        /// <returns></returns>
-        public Order GetOrderAtWindow(int windowIndex)
+
+        public void ResetOrders()
         {
-            if (windowIndex < 0 || windowIndex >= _windowOrders.Length) return null;
-            return _windowOrders[windowIndex];
+            StopOrders();
+            if (_windowOrders != null)
+                for (int i = 0; i < _windowOrders.Length; i++)
+                {
+                    if (_windowOrders[i] == null)
+                    {
+                        continue;
+                    }
+
+                    _windowOrders[i] = null;
+                    GameEvents.RaiseOrderWindowCleared(i);
+                }
+
+            _nextOrderId = 0;
         }
 
-        /// <summary>
-        /// Called by CustomerWindow after it confirms the order is complete.
-        /// Clears the slot, fires events, and schedules the next order.
-        /// </summary>
-        public void CompleteOrderAtWindow(int windowIndex)
+        public Order GetOrderAtWindow(int windowIndex)
         {
-            if (windowIndex < 0 || windowIndex >= _windowOrders.Length) return;
-            Order completed = _windowOrders[windowIndex];
-            if (completed == null) return;
+            return IsValidWindowIndex(windowIndex) ? _windowOrders[windowIndex] : null;
+        }
 
-            int score = completed.CalculateScore();
+        public bool TryDeliverIngredient(int windowIndex, Ingredient ingredient, out int awardedScore)
+        {
+            awardedScore = 0;
+            if (!IsValidWindowIndex(windowIndex) || ingredient == null)
+            {
+                return false;
+            }
+
+            Order order = _windowOrders[windowIndex];
+            if (order == null || !ingredient.IsReady)
+            {
+                return false;
+            }
+
+            if (!order.TryFulfil(ingredient.Data))
+            {
+                return false;
+            }
+
+            GameEvents.RaiseOrderUpdated(order, windowIndex);
+
+            if (!order.IsComplete)
+            {
+                return true;
+            }
+
+            awardedScore = order.CalculateScore();
+            CompleteOrderAtWindow(windowIndex, awardedScore);
+            return true;
+        }
+
+        public void CompleteOrderAtWindow(int windowIndex, int scoreOverride = -1)
+        {
+            if (!IsValidWindowIndex(windowIndex))
+            {
+                return;
+            }
+
+            Order completed = _windowOrders[windowIndex];
+            if (completed == null)
+            {
+                return;
+            }
+
+            int score = scoreOverride >= 0 ? scoreOverride : completed.CalculateScore();
             _windowOrders[windowIndex] = null;
-            OnOrderCompleted?.Invoke(completed, score);
-            OnWindowCleared?.Invoke(windowIndex);
+
+            GameEvents.RaiseOrderCompleted(completed, score);
+            GameEvents.RaiseOrderWindowCleared(windowIndex);
             GameLogger.Info(GameLogCategory.Orders, $"Completed {GameLogger.DescribeOrder(completed)} at window {windowIndex} for {score} points.", this);
 
             if (_isRunning)
+            {
                 StartCoroutine(RespawnAfterDelay(windowIndex));
+            }
         }
 
-        // ── Private helpers ───────────────────────────────────────────────
-    /// <summary>
-    /// Spawns a new order at the specified window index. Generates a random list of required ingredients based on the configured min/max and chance for extra ingredients. Creates a new Order object with a unique ID and assigns it to the window slot. Fires the OnOrderAssigned event to notify UI and other systems of the new order. Logs the details of the spawned order for debugging.
-    /// </summary>
-    /// <param name="windowIndex"></param>
+        private IEnumerator SpawnInitialOrders()
+        {
+            for (int i = 0; i < _windowOrders.Length; i++)
+            {
+                SpawnOrder(i);
+                yield return new WaitForSeconds(Random.Range(InitialSpawnDelayMin, InitialSpawnDelayMax));
+            }
+        }
+
         private void SpawnOrder(int windowIndex)
         {
-            if (!_isRunning) return;
+            if (!_isRunning || ingredientRegistry == null || !IsValidWindowIndex(windowIndex))
+            {
+                return;
+            }
 
-            int count = GetIngredientCountForNextOrder();
-            var ingredients = new List<IngredientData>();
-            for (int i = 0; i < count; i++)
-                ingredients.Add(ingredientRegistry.GetRandom());
+            List<IngredientData> ingredients = new List<IngredientData>();
+            int ingredientCount = GetIngredientCountForNextOrder();
+            for (int i = 0; i < ingredientCount; i++)
+            {
+                IngredientData ingredientData = ingredientRegistry.GetRandom();
+                if (ingredientData != null)
+                {
+                    ingredients.Add(ingredientData);
+                }
+            }
 
-            var order = new Order(_nextOrderId++, ingredients);
+            if (ingredients.Count == 0)
+            {
+                GameLogger.Warning(GameLogCategory.Orders, "Unable to spawn order because the ingredient registry returned no ingredients.", this);
+                return;
+            }
+
+            Order order = new Order(_nextOrderId++, ingredients, Time.time);
             _windowOrders[windowIndex] = order;
-            OnOrderAssigned?.Invoke(order, windowIndex);
+            GameEvents.RaiseOrderAssigned(order, windowIndex);
             GameLogger.Info(GameLogCategory.Orders, $"Spawned {GameLogger.DescribeOrder(order)} at window {windowIndex}.", this);
         }
 
@@ -143,8 +183,11 @@ namespace YesChef.Orders
         {
             GameLogger.Verbose(GameLogCategory.Orders, $"Respawning order at window {windowIndex} in {RespawnDelay:0.0}s.", this);
             yield return new WaitForSeconds(RespawnDelay);
+
             if (_isRunning)
+            {
                 SpawnOrder(windowIndex);
+            }
         }
 
         private int GetIngredientCountForNextOrder()
@@ -157,7 +200,12 @@ namespace YesChef.Orders
                 return minCount;
             }
 
-            return UnityEngine.Random.value < MinIngredientCountChance ? minCount : maxCount;
+            return Random.value < MinIngredientCountChance ? minCount : maxCount;
+        }
+
+        private bool IsValidWindowIndex(int windowIndex)
+        {
+            return windowIndex >= 0 && windowIndex < _windowOrders.Length;
         }
     }
 }

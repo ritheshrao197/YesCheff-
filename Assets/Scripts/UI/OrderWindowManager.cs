@@ -1,4 +1,5 @@
 using UnityEngine;
+using YesChef.Core;
 using YesChef.Orders;
 
 namespace YesChef.UI
@@ -10,28 +11,45 @@ namespace YesChef.UI
 
         private void OnEnable()
         {
-            OrderManager.OnOrderAssigned += OnOrderAssigned;
-            OrderManager.OnWindowCleared += OnWindowCleared;
+            GameEvents.OrderAssigned += HandleOrderAssigned;
+            GameEvents.OrderWindowCleared += HandleOrderCleared;
+            GameEvents.OrderUpdated += HandleOrderUpdated;
         }
 
         private void OnDisable()
         {
-            OrderManager.OnOrderAssigned -= OnOrderAssigned;
-            OrderManager.OnWindowCleared -= OnWindowCleared;
+            GameEvents.OrderAssigned -= HandleOrderAssigned;
+            GameEvents.OrderWindowCleared -= HandleOrderCleared;
+            GameEvents.OrderUpdated -= HandleOrderUpdated;
         }
 
-        private void OnOrderAssigned(Order order, int windowIndex)
+        private void HandleOrderAssigned(Order order, int windowIndex)
         {
             if (IsValidWindowIndex(windowIndex))
+            {
                 orderWindowUIs[windowIndex].SetOrder(order);
+            }
         }
 
-        private void OnWindowCleared(int windowIndex)
+        private void HandleOrderCleared(int windowIndex)
         {
             if (IsValidWindowIndex(windowIndex))
+            {
                 orderWindowUIs[windowIndex].ClearOrder();
+            }
         }
 
-        private bool IsValidWindowIndex(int idx) => idx >= 0 && idx < orderWindowUIs.Length;
+        private void HandleOrderUpdated(Order order, int windowIndex)
+        {
+            if (IsValidWindowIndex(windowIndex))
+            {
+                orderWindowUIs[windowIndex].RefreshFulfilment();
+            }
+        }
+
+        private bool IsValidWindowIndex(int index)
+        {
+            return index >= 0 && index < orderWindowUIs.Length;
+        }
     }
 }

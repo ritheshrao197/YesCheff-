@@ -1,11 +1,8 @@
 // CustomerWindow.cs
-// Accepts prepared ingredients, validates them against the active order,
-// and reports score via event when an order completes.
+// Accepts prepared ingredients and delegates order validation to the order system.
 
-using System;
 using UnityEngine;
 using YesChef.Core;
-using YesChef.Ingredients;
 using YesChef.Orders;
 using YesChef.Player;
 
@@ -13,14 +10,8 @@ namespace YesChef.Stations
 {
     public class CustomerWindow : BaseStation
     {
-        // ── Events ────────────────────────────────────────────────────────
-        /// <summary>Fired when an order is fully completed. Args: windowIndex, score.</summary>
-        public static event Action<int, int> OnDeliveryScored;
-
-        // ── Inspector ─────────────────────────────────────────────────────
         [SerializeField] private int windowIndex;
-
-        [SerializeField] private OrderManager _orderManager;
+        [SerializeField] private OrderManager orderManager;
         [SerializeField] private GameObject customerAvatar;
 
         public int WindowIndex => windowIndex;
@@ -31,94 +22,72 @@ namespace YesChef.Stations
             stationName = "Customer Window";
         }
 
-
-        void OnEnable()
+        private void OnEnable()
         {
-
-            OrderManager.OnOrderAssigned += OnOrderAssigned;
-            OrderManager.OnWindowCleared += OnOrdercompleted;
+            GameEvents.OrderAssigned += HandleOrderAssigned;
+            GameEvents.OrderWindowCleared += HandleOrderCleared;
         }
 
-
-        void OnDisable()
+        private void OnDisable()
         {
-            OrderManager.OnOrderAssigned -= OnOrderAssigned;
-            OrderManager.OnWindowCleared -= OnOrdercompleted;
+            GameEvents.OrderAssigned -= HandleOrderAssigned;
+            GameEvents.OrderWindowCleared -= HandleOrderCleared;
         }
 
         public override void Interact(PlayerController player)
         {
-
-
             if (player.HeldIngredient == null)
             {
                 LogVerbose($"Window {windowIndex} interaction ignored because player has empty hands.");
                 return;
             }
 
-            Ingredient ing = player.HeldIngredient;
-
-            // 1. Ingredient must be ready
-            if (!ing.IsReady)
+            if (orderManager == null)
             {
-                LogWarning($"Window {windowIndex} rejected {GameLogger.DescribeIngredient(ing)} because it is not ready.");
+                LogError("OrderManager reference is missing.");
                 return;
             }
 
-            // 2. There must be an active order
-            Order order = _orderManager.GetOrderAtWindow(windowIndex);
-            if (order == null)
+            if (!orderManager.TryDeliverIngredient(windowIndex, player.HeldIngredient, out int score))
             {
-                LogWarning($"Window {windowIndex} rejected {GameLogger.DescribeIngredient(ing)} because there is no active order.");
+                LogWarning($"Window {windowIndex} rejected {GameLogger.DescribeIngredient(player.HeldIngredient)}.");
                 return;
             }
 
-            // 3. Try to slot the ingredient into the order
-            bool accepted = order.TryFulfil(ing.Data);
-            if (!accepted)
-            {
-                LogWarning($"Window {windowIndex} rejected {ing.Data.displayName}; not required by {GameLogger.DescribeOrder(order)}.");
-                return;
-            }
-
-            // Consume the ingredient
+            string deliveredIngredientName = player.HeldIngredient.Data.displayName;
+            Object deliveredObject = player.HeldIngredient.gameObject;
             player.Drop();
-            Destroy(ing.gameObject);
-            LogInfo($"Window {windowIndex} accepted {ing.Data.displayName} for {GameLogger.DescribeOrder(order)}.");
+            Destroy(deliveredObject);
+            LogInfo($"Window {windowIndex} accepted {deliveredIngredientName}.");
 
-            // 4. Check for order completion
-            if (order.IsComplete)
+            if (score > 0)
             {
-                int score = order.CalculateScore();
-                _orderManager.CompleteOrderAtWindow(windowIndex);
-                OnDeliveryScored?.Invoke(windowIndex, score);
-                LogInfo($"Window {windowIndex} completed {GameLogger.DescribeOrder(order)} for {score} points.");
+                GameEvents.RaiseDeliveryScored(windowIndex, score);
+                LogInfo($"Window {windowIndex} completed the active order for {score} points.");
             }
         }
 
         public override string GetInteractionPrompt()
         {
-            Order order = _orderManager?.GetOrderAtWindow(windowIndex);
-            return order == null ? "No order here" : "[E] Deliver ingredient";
+            return orderManager != null && orderManager.GetOrderAtWindow(windowIndex) != null
+                ? "[E] Deliver ingredient"
+                : "No order here";
         }
 
-        private void OnOrderAssigned(Order order, int id)
+        private void HandleOrderAssigned(Order order, int assignedWindowIndex)
         {
-            if (id == windowIndex)
+            if (assignedWindowIndex == windowIndex && customerAvatar != null)
             {
                 customerAvatar.SetActive(true);
             }
-
         }
-        private void OnOrdercompleted( int id)
+
+        private void HandleOrderCleared(int clearedWindowIndex)
         {
-            LogInfo($"Received order completed event for window {id}.");
-            if (id == windowIndex)
+            if (clearedWindowIndex == windowIndex && customerAvatar != null)
             {
                 customerAvatar.SetActive(false);
             }
-
         }
-
     }
 }

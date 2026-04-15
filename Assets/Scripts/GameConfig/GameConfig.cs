@@ -19,7 +19,7 @@ namespace YesChef.Core
     [Serializable]
     public class TimerSystemConfig
     {
-        [Min(60f)] public float gameDuration = 180f;
+        [Min(30f)] public float gameDuration = 180f;
     }
 
     [Serializable]

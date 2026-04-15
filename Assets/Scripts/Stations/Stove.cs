@@ -1,6 +1,5 @@
 // Stove.cs
-// Has 2 independent cooking slots. Meat takes 6 seconds per slot.
-// Player does NOT need to stay near the stove while cooking.
+// Processes ingredients that are prepared at the stove.
 
 using System;
 using System.Collections;
@@ -13,110 +12,86 @@ namespace YesChef.Stations
 {
     public class Stove : BaseStation
     {
-        private const string PickupPrompt = "[E] Pick up cooked meat";
-        private const string PlacePrompt = "[E] Place meat to cook";
+        private const string PickupPrompt = "[E] Pick up prepared ingredient";
+        private const string PlacePrompt = "[E] Place ingredient to cook";
         private const string FullPrompt = "Stove full";
 
-        // ── Events ────────────────────────────────────────────────────────
-        // Per-slot progress (slotIndex, 0..1)
-        public static event Action<int, float> OnSlotProgress;
-        public static event Action<int>        OnSlotComplete;
-        public static event Action<int>        OnSlotStarted;
+        [SerializeField] private float defaultCookTime = 6f;
+        [SerializeField] private int slotCount = 2;
+        [SerializeField] private Transform[] slotOffsets;
 
-
-        // ── Inspector ─────────────────────────────────────────────────────
-        [SerializeField] private float cookTime = 6f;
-        [SerializeField] private int   slotCount = 2;
-        [SerializeField]private Transform[] SlotOffsets;
-
-
-        // ── State ─────────────────────────────────────────────────────────
         private Ingredient[] _slots;
-        private bool[]       _isCooking;
-
+        private bool[] _isCooking;
 
         protected override void Awake()
         {
             base.Awake();
             stationName = "Stove";
-            _slots     = new Ingredient[slotCount];
+            _slots = new Ingredient[slotCount];
             _isCooking = new bool[slotCount];
         }
 
         public override void Interact(PlayerController player)
         {
-            // Priority: let player collect finished meat first
+            LogVerbose("Player interacted with stove.");
             for (int i = 0; i < slotCount; i++)
             {
-                if (_slots[i] != null && !_isCooking[i] && _slots[i].State == IngredientState.Prepared)
-                {
-                    if (player.HeldIngredient == null)
-                    {
-                        player.PickUp(_slots[i]);
-                        LogInfo($"Player collected {GameLogger.DescribeIngredient(_slots[i])} from slot {i}.");
-                        _slots[i] = null;
-                        return;
-                    }
 
-                    LogVerbose($"Cooked item ready in slot {i}, but player hands are full.");
+                if (_slots[i] == null || _isCooking[i] || _slots[i].State != IngredientState.Prepared)
+                {
+                LogVerbose($"Slot {i} is not ready for pickup. Cooking: {_isCooking[i]}, Ingredient: {GameLogger.DescribeIngredient(_slots[i])}");
+                    continue;
                 }
+
+                if (player.HeldIngredient != null)
+                {
+                    LogVerbose($"Prepared item ready in slot {i}, but player hands are full.");
+                    continue;
+                }
+
+                player.PickUp(_slots[i]);
+                LogVerbose($"Player collected {GameLogger.DescribeIngredient(_slots[i])} from slot {i}.");
+                _slots[i] = null;
+                return;
             }
 
-            // Place raw meat into the first available free slot
-            if (player.HeldIngredient != null)
+            if (player.HeldIngredient == null)
             {
-                Ingredient ing = player.HeldIngredient;
+                LogInfo("Player has no ingredient to place.");
 
-                if (ing.Data.type != IngredientType.Meat)
-                {
-                    LogWarning($"Rejected {GameLogger.DescribeIngredient(ing)} because only meat can be cooked.");
-                    return;
-                }
-
-                if (ing.State != IngredientState.Raw)
-                {
-                    LogWarning($"Rejected {GameLogger.DescribeIngredient(ing)} because it is not raw.");
-                    return;
-                }
-
-                for (int i = 0; i < slotCount; i++)
-                {
-                    if (_slots[i] == null)
-                    {
-                        player.Drop();
-                        _slots[i] = ing;
-                        _slots[i].transform.position = SlotOffsets[i].position;
-                        _slots[i].gameObject.SetActive(true);
-                        LogInfo($"Started cooking {GameLogger.DescribeIngredient(ing)} in slot {i}.");
-                        StartCoroutine(CookRoutine(i));
-                        return;
-                    }
-                }
-
-                LogWarning("Player tried to place meat, but both stove slots are occupied.");
+                return;
             }
-        }
 
-        private IEnumerator CookRoutine(int slotIndex)
-        {
-            _isCooking[slotIndex] = true;
-            _slots[slotIndex].SetState(IngredientState.Processing);
-            OnSlotStarted?.Invoke(slotIndex);
-            LogVerbose($"Cooking started in slot {slotIndex}.");
-
-            float elapsed = 0f;
-            while (elapsed < cookTime)
+            Ingredient ingredient = player.HeldIngredient;
+            if (!ingredient.Data.CanBePreparedAt(PreparationStationType.Stove))
             {
-                elapsed += Time.deltaTime;
-                OnSlotProgress?.Invoke(slotIndex, elapsed / cookTime);
-                yield return null;
+                LogWarning($"Rejected {GameLogger.DescribeIngredient(ingredient)} because it cannot be cooked at the stove.");
+                return;
             }
 
-            _slots[slotIndex].SetState(IngredientState.Prepared);
-            _isCooking[slotIndex] = false;
-            OnSlotProgress?.Invoke(slotIndex, 1f);
-            OnSlotComplete?.Invoke(slotIndex);
-            LogInfo($"Cooking finished in slot {slotIndex}: {GameLogger.DescribeIngredient(_slots[slotIndex])}.");
+            if (ingredient.State != IngredientState.Raw)
+            {
+                LogWarning($"Rejected {GameLogger.DescribeIngredient(ingredient)} because it is not raw.");
+                return;
+            }
+
+            for (int i = 0; i < slotCount; i++)
+            {
+                if (_slots[i] != null)
+                {
+                    continue;
+                }
+
+                player.Drop();
+                _slots[i] = ingredient;
+                _slots[i].transform.position = slotOffsets[i].position;
+                _slots[i].gameObject.SetActive(true);
+                LogInfo($"Started cooking {GameLogger.DescribeIngredient(ingredient)} in slot {i}.");
+                StartCoroutine(CookRoutine(i));
+                return;
+            }
+
+            LogWarning("Player tried to place an ingredient, but all stove slots are occupied.");
         }
 
         public override string GetInteractionPrompt()
@@ -124,13 +99,59 @@ namespace YesChef.Stations
             for (int i = 0; i < slotCount; i++)
             {
                 if (_slots[i] != null && !_isCooking[i] && _slots[i].State == IngredientState.Prepared)
+                {
                     return PickupPrompt;
+                }
             }
+
             for (int i = 0; i < slotCount; i++)
             {
-                if (_slots[i] == null) return PlacePrompt;
+                if (_slots[i] == null)
+                {
+                    return PlacePrompt;
+                }
             }
+
             return FullPrompt;
         }
+
+        private IEnumerator CookRoutine(int slotIndex)
+        {
+            _isCooking[slotIndex] = true;
+            _slots[slotIndex].SetState(IngredientState.Processing);
+            GameEvents.RaiseStoveSlotStarted(this, slotIndex);
+            LogVerbose($"Cooking started in slot {slotIndex}.");
+
+            float duration = Mathf.Max(0.01f, _slots[slotIndex].Data != null ? _slots[slotIndex].Data.preparationTime : defaultCookTime);
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                GameEvents.RaiseStoveSlotProgressChanged(this, slotIndex, elapsed / duration);
+                yield return null;
+            }
+
+            _slots[slotIndex].SetState(IngredientState.Prepared);
+            _isCooking[slotIndex] = false;
+            GameEvents.RaiseStoveSlotProgressChanged(this, slotIndex, 1f);
+            GameEvents.RaiseStoveSlotCompleted(this, slotIndex);
+            LogInfo($"Cooking finished in slot {slotIndex}: {GameLogger.DescribeIngredient(_slots[slotIndex])}.");
+        }
+
+        public void ResetStation()
+        {
+            for (int i = 0; i < slotCount; i++)
+            {
+                if (_slots[i] != null)
+                {
+                    Destroy(_slots[i].gameObject);
+                    _slots[i] = null;
+                    _isCooking[i] = false;
+                }
+            }
+             LogInfo("Stove station reset.");   
+        }
+
     }
 }

@@ -6,6 +6,13 @@ using UnityEngine;
 
 namespace YesChef.Ingredients
 {
+    public enum PreparationStationType
+    {
+        None,
+        ChoppingTable,
+        Stove
+    }
+
     public enum IngredientType
     {
         Vegetable,
@@ -15,9 +22,9 @@ namespace YesChef.Ingredients
 
     public enum IngredientState
     {
-        Raw,        // Just picked up from fridge
-        Prepared,   // Chopped (veg) or Cooked (meat) — ready for orders
-        Processing  // Currently being chopped/cooked
+        Raw,
+        Prepared,
+        Processing
     }
 
     [CreateAssetMenu(menuName = "YesChef/IngredientData", fileName = "IngredientData")]
@@ -32,13 +39,18 @@ namespace YesChef.Ingredients
 
         [Header("Preparation")]
         public bool requiresPreparation = true;
-        public float preparationTime = 2f;   // seconds
+        public float preparationTime = 2f;
+        public PreparationStationType preparationStation = PreparationStationType.None;
 
         [Header("Visuals")]
         public Color rawColor = Color.white;
         public Color preparedColor = Color.green;
 
-        /// <summary>Returns true if this ingredient needs processing before it can fill an order.</summary>
         public bool NeedsPrep => requiresPreparation;
+
+        public bool CanBePreparedAt(PreparationStationType stationType)
+        {
+            return requiresPreparation && preparationStation == stationType;
+        }
     }
 }

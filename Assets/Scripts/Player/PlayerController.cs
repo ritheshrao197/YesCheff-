@@ -1,8 +1,6 @@
 // PlayerController.cs
-// Handles WASD movement, E interaction, and item holding.
-// Uses a lightweight FSM: Idle, Moving, Interacting.
+// Handles movement, interaction input, and held ingredient state.
 
-using System;
 using UnityEngine;
 using YesChef.Core;
 using YesChef.Ingredients;
@@ -10,51 +8,58 @@ using YesChef.Interfaces;
 
 namespace YesChef.Player
 {
-    public enum PlayerState { Idle, Moving, Interacting }
+    public enum PlayerState
+    {
+        Idle,
+        Moving,
+        Interacting
+    }
 
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
         private const float MovementInputThreshold = 0.01f;
         private const float GravityStrength = 9.81f;
-        private const int MaxInteractionHits = 16;
 
-        public static event Action<Ingredient> OnPickedUp;
-        public static event Action OnDropped;
-        public static event Action<string> OnNearInteractable;
-        public static event Action OnLeftInteractable;
-
-        [Header("Movement")]
-        [SerializeField] private float moveSpeed = 5f;
+        [Header("Configuration")]
+        [SerializeField] private PlayerConfig playerConfig;
 
         [Header("Interaction")]
-        [SerializeField] private float interactionRadius = 1.5f;
         [SerializeField] private LayerMask interactionMask;
 
-        [Header("Item Hold Offset")]
+        [Header("Fallback Tuning")]
+        [SerializeField] private float moveSpeed = 5f;
+        [SerializeField] private float interactionRadius = 1.5f;
         [SerializeField] private Vector3 holdOffset = new Vector3(0.5f, 0.8f, 0.5f);
 
         public PlayerState State { get; private set; } = PlayerState.Idle;
         public Ingredient HeldIngredient { get; private set; }
 
-        private readonly Collider[] _interactionHits = new Collider[MaxInteractionHits];
-
-        private CharacterController _cc;
+        private CharacterController _characterController;
         private Transform _cachedTransform;
+        private PlayerInteractionSensor _interactionSensor;
         private IInteractable _nearestInteractable;
         private string _currentPrompt;
         private bool _isGameRunning;
 
+        private float MoveSpeed => playerConfig != null ? playerConfig.moveSpeed : moveSpeed;
+        private float InteractionRadius => playerConfig != null ? playerConfig.interactionRadius : interactionRadius;
+        private Vector3 HoldOffset => playerConfig != null ? playerConfig.holdOffset : holdOffset;
+
         private void Awake()
         {
-            _cc = GetComponent<CharacterController>();
+            _characterController = GetComponent<CharacterController>();
             _cachedTransform = transform;
+            _interactionSensor = new PlayerInteractionSensor(_cachedTransform, InteractionRadius, interactionMask);
             GameLogger.Verbose(GameLogCategory.Player, "Player controller initialised.", this);
         }
 
         private void Update()
         {
-            if (!_isGameRunning) return;
+            if (!_isGameRunning)
+            {
+                return;
+            }
 
             HandleMovement();
             HandleInteractionScan();
@@ -63,7 +68,10 @@ namespace YesChef.Player
 
         public void SetGameRunning(bool running)
         {
-            if (_isGameRunning == running) return;
+            if (_isGameRunning == running)
+            {
+                return;
+            }
 
             _isGameRunning = running;
             GameLogger.Info(GameLogCategory.Player, $"Player input {(running ? "enabled" : "disabled")}.", this);
@@ -73,40 +81,64 @@ namespace YesChef.Player
                 ClearNearestInteractable();
                 TransitionTo(PlayerState.Idle);
             }
+            if (HeldIngredient != null)
+            {
+                ClearHeldIngredient();
+            }
         }
 
         public void PickUp(Ingredient ingredient)
         {
-            if (HeldIngredient != null || ingredient == null) return;
+            if (HeldIngredient != null || ingredient == null)
+            {
+                return;
+            }
 
             HeldIngredient = ingredient;
             ingredient.transform.SetParent(_cachedTransform);
-            ingredient.transform.localPosition = holdOffset;
+            ingredient.transform.localPosition = HoldOffset;
             ingredient.gameObject.SetActive(true);
-            OnPickedUp?.Invoke(ingredient);
+            GameEvents.RaisePlayerPickedUpIngredient(ingredient);
             TransitionTo(PlayerState.Idle);
             GameLogger.Info(GameLogCategory.Player, $"Picked up {GameLogger.DescribeIngredient(ingredient)}.", this);
         }
 
         public void Drop()
         {
-            if (HeldIngredient == null) return;
+            if (HeldIngredient == null)
+            {
+                return;
+            }
 
             Ingredient droppedIngredient = HeldIngredient;
             droppedIngredient.transform.SetParent(null);
             HeldIngredient = null;
-            OnDropped?.Invoke();
+            GameEvents.RaisePlayerDroppedIngredient();
             GameLogger.Info(GameLogCategory.Player, $"Dropped {GameLogger.DescribeIngredient(droppedIngredient)}.", this);
+        }
+
+        public void ClearHeldIngredient()
+        {
+            if (HeldIngredient == null)
+            {
+                return;
+            }
+
+            GameLogger.Info(GameLogCategory.Player, $"Cleared held ingredient {GameLogger.DescribeIngredient(HeldIngredient)}.", this);
+            Destroy(HeldIngredient.gameObject);
+            HeldIngredient = null;
+
         }
 
         private void HandleMovement()
         {
-            float h = Input.GetAxis("Horizontal");
-            float v = Input.GetAxis("Vertical");
-            Vector3 moveDirection = new Vector3(h, 0f, v).normalized;
+            float horizontal = Input.GetAxis("Horizontal");
+            float vertical = Input.GetAxis("Vertical");
+            Vector3 moveDirection = new Vector3(horizontal, 0f, vertical);
 
             if (moveDirection.sqrMagnitude > MovementInputThreshold)
             {
+                moveDirection.Normalize();
                 _cachedTransform.forward = moveDirection;
                 TransitionTo(PlayerState.Moving);
             }
@@ -115,63 +147,38 @@ namespace YesChef.Player
                 TransitionTo(PlayerState.Idle);
             }
 
-            Vector3 movement = (moveDirection * moveSpeed) + (Vector3.down * GravityStrength);
-            _cc.Move(movement * Time.deltaTime);
+            Vector3 movement = (moveDirection * MoveSpeed) + (Vector3.down * GravityStrength);
+            _characterController.Move(movement * Time.deltaTime);
         }
 
         private void HandleInteractionScan()
         {
-            int hitCount = Physics.OverlapSphereNonAlloc(
-                _cachedTransform.position,
-                interactionRadius,
-                _interactionHits,
-                interactionMask);
-
-            IInteractable closest = null;
-            float closestSqrDistance = float.MaxValue;
-            Vector3 origin = _cachedTransform.position;
-
-            for (int i = 0; i < hitCount; i++)
-            {
-                Collider hit = _interactionHits[i];
-                if (hit == null) continue;
-
-                IInteractable interactable = hit.GetComponent<IInteractable>();
-                if (interactable == null) continue;
-
-                float sqrDistance = (hit.transform.position - origin).sqrMagnitude;
-                if (sqrDistance < closestSqrDistance)
-                {
-                    closestSqrDistance = sqrDistance;
-                    closest = interactable;
-                }
-
-                _interactionHits[i] = null;
-            }
-
-            if (closest == null)
+            IInteractable nearestInteractable = _interactionSensor.FindNearestInteractable();
+            if (nearestInteractable == null)
             {
                 ClearNearestInteractable();
                 return;
             }
 
-            _nearestInteractable = closest;
-            string prompt = closest.GetInteractionPrompt();
-
-            if (prompt != _currentPrompt)
-            {
-                _currentPrompt = prompt;
-                OnNearInteractable?.Invoke(prompt);
-            }
-        }
-
-        private void HandleInteractionInput()
-        {
-            if (!Input.GetKeyDown(KeyCode.E) || _nearestInteractable == null)
+            _nearestInteractable = nearestInteractable;
+            string prompt = nearestInteractable.GetInteractionPrompt();
+            if (prompt == _currentPrompt)
             {
                 return;
             }
 
+            _currentPrompt = prompt;
+            GameEvents.RaiseInteractionPromptChanged(prompt);
+        }
+
+        private void HandleInteractionInput()
+        {
+
+            if (!Input.GetKeyDown(KeyCode.E)|| _nearestInteractable == null)
+            {
+                return;
+            }
+           
             TransitionTo(PlayerState.Interacting);
             GameLogger.Verbose(GameLogCategory.Player, $"Interacting with {_nearestInteractable.GetType().Name}.", this);
             _nearestInteractable.Interact(this);
@@ -186,12 +193,15 @@ namespace YesChef.Player
 
             _nearestInteractable = null;
             _currentPrompt = null;
-            OnLeftInteractable?.Invoke();
+            GameEvents.RaiseInteractionPromptCleared();
         }
 
         private void TransitionTo(PlayerState newState)
         {
-            if (State == newState) return;
+            if (State == newState)
+            {
+                return;
+            }
 
             GameLogger.Verbose(GameLogCategory.Player, $"State changed {State} -> {newState}.", this);
             State = newState;
@@ -200,7 +210,7 @@ namespace YesChef.Player
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = Color.cyan;
-            Gizmos.DrawWireSphere(transform.position, interactionRadius);
+            Gizmos.DrawWireSphere(transform.position, InteractionRadius);
         }
     }
 }

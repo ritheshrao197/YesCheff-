@@ -1,8 +1,6 @@
 // Table.cs
-// Chops vegetables. Only one vegetable can be on the table at a time.
-// Takes 2 seconds; shows progress via event to UI.
+// Processes ingredients that are prepared at the chopping table.
 
-using System;
 using System.Collections;
 using UnityEngine;
 using YesChef.Core;
@@ -14,21 +12,14 @@ namespace YesChef.Stations
     public class Table : BaseStation
     {
         private static readonly Vector3 IngredientPlacementOffset = Vector3.up * 0.5f;
-        private const string PickupPrompt = "[E] Pick up chopped vegetable";
-        private const string ChoppingPrompt = "Chopping...";
-        private const string PlacePrompt = "[E] Place vegetable to chop";
+        private const string PickupPrompt = "[E] Pick up prepared ingredient";
+        private const string ChoppingPrompt = "Preparing...";
+        private const string PlacePrompt = "[E] Place ingredient to prep";
 
-        // ── Events ────────────────────────────────────────────────────────
-        public static event Action<float> OnChopProgress;   // 0..1
-        public static event Action         OnChopComplete;
-        public static event Action         OnChopStarted;
+        [SerializeField] private float defaultChopTime = 2f;
 
-        // ── Inspector ─────────────────────────────────────────────────────
-        [SerializeField] private float chopTime = 2f;
-
-        // ── State ─────────────────────────────────────────────────────────
         private Ingredient _currentIngredient;
-        private bool _isChopping = false;
+        private bool _isChopping;
 
         protected override void Awake()
         {
@@ -38,7 +29,6 @@ namespace YesChef.Stations
 
         public override void Interact(PlayerController player)
         {
-            // Case 1: Table has a finished vegetable — player picks it up
             if (_currentIngredient != null && !_isChopping && _currentIngredient.State == IngredientState.Prepared)
             {
                 if (player.HeldIngredient == null)
@@ -51,64 +41,82 @@ namespace YesChef.Stations
                 {
                     LogVerbose("Prepared ingredient is ready on table, but player hands are full.");
                 }
+
                 return;
             }
 
-            // Case 2: Player has a raw vegetable and table is free
-            if (player.HeldIngredient != null && !_isChopping && _currentIngredient == null)
+            if (player.HeldIngredient == null || _isChopping || _currentIngredient != null)
             {
-                Ingredient ing = player.HeldIngredient;
-
-                if (ing.Data.type != IngredientType.Vegetable)
-                {
-                    LogWarning($"Rejected {GameLogger.DescribeIngredient(ing)} because only vegetables can be chopped.");
-                    return;
-                }
-
-                if (ing.State != IngredientState.Raw)
-                {
-                    LogWarning($"Rejected {GameLogger.DescribeIngredient(ing)} because it is not raw.");
-                    return;
-                }
-
-                player.Drop();
-                _currentIngredient = ing;
-                _currentIngredient.transform.position = transform.position + IngredientPlacementOffset;
-                _currentIngredient.gameObject.SetActive(true);
-                LogInfo($"Started chopping {GameLogger.DescribeIngredient(_currentIngredient)}.");
-
-                StartCoroutine(ChopRoutine());
+                return;
             }
+
+            Ingredient ingredient = player.HeldIngredient;
+            if (!ingredient.Data.CanBePreparedAt(PreparationStationType.ChoppingTable))
+            {
+                LogWarning($"Rejected {GameLogger.DescribeIngredient(ingredient)} because it cannot be prepared at the chopping table.");
+                return;
+            }
+
+            if (ingredient.State != IngredientState.Raw)
+            {
+                LogWarning($"Rejected {GameLogger.DescribeIngredient(ingredient)} because it is not raw.");
+                return;
+            }
+
+            player.Drop();
+            _currentIngredient = ingredient;
+            _currentIngredient.transform.position = transform.position + IngredientPlacementOffset;
+            _currentIngredient.gameObject.SetActive(true);
+            LogInfo($"Started preparing {GameLogger.DescribeIngredient(_currentIngredient)}.");
+
+            StartCoroutine(ChopRoutine());
+        }
+
+        public override string GetInteractionPrompt()
+        {
+            if (_currentIngredient != null && !_isChopping && _currentIngredient.State == IngredientState.Prepared)
+            {
+                return PickupPrompt;
+            }
+
+            if (_isChopping)
+            {
+                return ChoppingPrompt;
+            }
+
+            return PlacePrompt;
         }
 
         private IEnumerator ChopRoutine()
         {
             _isChopping = true;
             _currentIngredient.SetState(IngredientState.Processing);
-            OnChopStarted?.Invoke();
+            GameEvents.RaiseChopStarted(this);
 
+            float duration = Mathf.Max(0.01f, _currentIngredient.Data != null ? _currentIngredient.Data.preparationTime : defaultChopTime);
             float elapsed = 0f;
-            while (elapsed < chopTime)
+
+            while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
-                OnChopProgress?.Invoke(elapsed / chopTime);
+                GameEvents.RaiseChopProgressChanged(this, elapsed / duration);
                 yield return null;
             }
 
             _currentIngredient.SetState(IngredientState.Prepared);
             _isChopping = false;
-            OnChopProgress?.Invoke(1f);
-            OnChopComplete?.Invoke();
-            LogInfo($"Finished chopping {GameLogger.DescribeIngredient(_currentIngredient)}.");
+            GameEvents.RaiseChopProgressChanged(this, 1f);
+            GameEvents.RaiseChopCompleted(this);
+            LogInfo($"Finished preparing {GameLogger.DescribeIngredient(_currentIngredient)}.");
         }
-
-        public override string GetInteractionPrompt()
+        public override void ResetStation()
         {
-            if (_currentIngredient != null && !_isChopping && _currentIngredient.State == IngredientState.Prepared)
-                return PickupPrompt;
-            if (_isChopping)
-                return ChoppingPrompt;
-            return PlacePrompt;
+            if (_currentIngredient != null)
+            {
+                Destroy(_currentIngredient.gameObject);
+                _currentIngredient = null;
+            }
+            _isChopping = false;
         }
     }
 }

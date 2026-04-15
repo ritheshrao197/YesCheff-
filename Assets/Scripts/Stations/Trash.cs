@@ -2,7 +2,6 @@
 // Destroys whatever ingredient the player is holding.
 
 using UnityEngine;
-using YesChef.Core;
 using YesChef.Ingredients;
 using YesChef.Player;
 
@@ -24,10 +23,10 @@ namespace YesChef.Stations
                 return;
             }
 
-            Ingredient ing = player.HeldIngredient;
+            Ingredient ingredient = player.HeldIngredient;
             player.Drop();
-            Destroy(ing.gameObject);
-            LogInfo($"Discarded {GameLogger.DescribeIngredient(ing)}.");
+            Destroy(ingredient.gameObject);
+            LogInfo($"Discarded {ingredient.Data.displayName}.");
         }
 
         public override string GetInteractionPrompt()

@@ -1,87 +1,89 @@
 // UIManager.cs
-// Coordinates UI screens, progress bars, order windows, floating popups.
-// No longer handles screen‑specific logic.
+// Maps game state and gameplay events to presentation screens.
 
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using YesChef.Core;
-using YesChef.Orders;
-using YesChef.Stations;
-using YesChef.Systems;
 
 namespace YesChef.UI
 {
     public class UIManager : MonoBehaviour
     {
-        public static UIManager Instance { get; private set; }
-
         [Header("Screens")]
         [SerializeField] private StartScreen startScreen;
         [SerializeField] private HUDScreen hudScreen;
         [SerializeField] private PauseScreen pauseScreen;
         [SerializeField] private GameOverScreen gameOverScreen;
 
-
-        private void Awake()
-        {
-            if (Instance == null) Instance = this;
-            else Destroy(gameObject);
-
-        }
-
         private void OnEnable()
         {
-            SubscribeToGlobalEvents();
+            GameEvents.GameStateChanged += HandleGameStateChanged;
+            GameEvents.GameEnded += HandleGameEnded;
         }
 
         private void OnDisable()
         {
-            UnsubscribeFromGlobalEvents();
+            GameEvents.GameStateChanged -= HandleGameStateChanged;
+            GameEvents.GameEnded -= HandleGameEnded;
         }
 
         private void Start()
         {
-            ShowScreen<StartScreen>();
+            ShowScreen<GameOverScreen>(false);
+            ShowScreen<PauseScreen>(false);
+            ShowScreen<HUDScreen>(false);
+            ShowScreen<StartScreen>(true);
         }
 
-        // ─────────────────────────────────────────────────────────
-        // Screen Management (Type‑safe)
-        // ─────────────────────────────────────────────────────────
-        public void ShowScreen<T>() where T : BaseScreen
+        public void ShowScreen<T>(bool visible = true) where T : BaseScreen
         {
-            // Hide all screens first
-            startScreen?.Hide();
-            hudScreen?.Hide();
-            pauseScreen?.Hide();
-            gameOverScreen?.Hide();
-
-            // Show the requested one
-            if (typeof(T) == typeof(StartScreen)) startScreen?.Show();
-            else if (typeof(T) == typeof(HUDScreen)) hudScreen?.Show();
-            else if (typeof(T) == typeof(PauseScreen)) pauseScreen?.Show();
-            else if (typeof(T) == typeof(GameOverScreen)) gameOverScreen?.Show();
+            ToggleScreen(startScreen, typeof(T) == typeof(StartScreen) && visible);
+            ToggleScreen(hudScreen, typeof(T) == typeof(HUDScreen) && visible);
+            ToggleScreen(pauseScreen, typeof(T) == typeof(PauseScreen) && visible);
+            ToggleScreen(gameOverScreen, typeof(T) == typeof(GameOverScreen) && visible);
         }
 
-        // ─────────────────────────────────────────────────────────
-        // Global Event Subscription
-        // ─────────────────────────────────────────────────────────
-        private void SubscribeToGlobalEvents()
+        private void HandleGameStateChanged(GameState state)
         {
-            ScoreSystem.OnGameEndedWithHighScore += OnGameEnded;
-        }
-        private void UnsubscribeFromGlobalEvents()
-        {
-            ScoreSystem.OnGameEndedWithHighScore -= OnGameEnded;
+            switch (state)
+            {
+                case GameState.Start:
+                    ShowScreen<StartScreen>();
+                    break;
+                case GameState.Playing:
+                    ShowScreen<HUDScreen>();
+                    break;
+                case GameState.Paused:
+                    ShowScreen<PauseScreen>();
+                    break;
+                case GameState.End:
+                    ShowScreen<GameOverScreen>();
+                    break;
+            }
         }
 
-        public void OnGameEnded(bool isNewHighScore,int finalScore)
+        private void HandleGameEnded(bool isNewHighScore, int finalScore)
         {
-            if ( gameOverScreen != null)
+            if (gameOverScreen != null)
             {
                 gameOverScreen.ShowFinalScore(finalScore, isNewHighScore);
             }
-            ShowScreen<GameOverScreen>();
+        }
+
+        private static void ToggleScreen(BaseScreen screen, bool shouldShow)
+        {
+            if (screen == null)
+            {
+                return;
+            }
+
+            if (shouldShow)
+            {
+                screen.Show();
+            }
+            else
+            {
+                screen.Hide();
+            }
         }
     }
 }

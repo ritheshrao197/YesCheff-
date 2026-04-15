@@ -1,61 +1,57 @@
 // ScoreSystem.cs
 // Manages current score, high score, and persistence via PlayerPrefs.
 
-using System;
 using UnityEngine;
 using YesChef.Core;
 
 namespace YesChef.Systems
 {
+   
     public class ScoreSystem : MonoBehaviour
     {
-        // ── Events ────────────────────────────────────────────────────────
-        public static event Action<int> OnScoreChanged;
-        public static event Action<int> OnHighScoreChanged;
-        public static event Action<bool, int> OnGameEndedWithHighScore; // bool = isNewHighScore, int = finalScore
 
-        private const string HighScoreKey = "YesChef_HighScore";
-
-        // ── State ─────────────────────────────────────────────────────────
         public int CurrentScore { get; private set; }
-        public int HighScore    { get; private set; }
+        public int HighScore { get; private set; }
+        [Header("Encryption Settings")]
+        public EncryptionConfig encryptionConfig;
 
-        // ── Unity lifecycle ───────────────────────────────────────────────
         private void Awake()
         {
-            HighScore = PlayerPrefs.GetInt(HighScoreKey, 0);
+            GameDataManager.Initialise(encryptionConfig);
+
+            HighScore = GameDataManager.Load<SaveContainer>().Highscore;
+            GameEvents.RaiseHighScoreChanged(HighScore);
             GameLogger.Info(GameLogCategory.Score, $"Loaded high score: {HighScore}.", this);
         }
-
-        // ── Public API ────────────────────────────────────────────────────
         public void ResetScore()
         {
             CurrentScore = 0;
-            OnScoreChanged?.Invoke(CurrentScore);
+            GameEvents.RaiseScoreChanged(CurrentScore);
+            GameEvents.RaiseHighScoreChanged(HighScore);
             GameLogger.Info(GameLogCategory.Score, "Score reset to 0.", this);
         }
 
         public void AddScore(int delta)
         {
             CurrentScore += delta;
-            OnScoreChanged?.Invoke(CurrentScore);
+            GameEvents.RaiseScoreChanged(CurrentScore);
             GameLogger.Info(GameLogCategory.Score, $"Score changed by {delta}. New total: {CurrentScore}.", this);
         }
 
         public void FinaliseGame()
         {
-            bool isNew = CurrentScore > HighScore;
-            if (isNew)
+            bool isNewHighScore = CurrentScore > HighScore;
+            if (isNewHighScore)
             {
                 HighScore = CurrentScore;
-                PlayerPrefs.SetInt(HighScoreKey, HighScore);
-                PlayerPrefs.Save();
-                OnHighScoreChanged?.Invoke(HighScore);
+                var saveContainer = new SaveContainer { Highscore = HighScore };
+                GameDataManager.Save(saveContainer);
+                GameEvents.RaiseHighScoreChanged(HighScore);
                 GameLogger.Info(GameLogCategory.Score, $"New high score saved: {HighScore}.", this);
             }
 
-            GameLogger.Info(GameLogCategory.Score, $"Game finalised with score {CurrentScore}. New high score: {isNew}.", this);
-            OnGameEndedWithHighScore?.Invoke(isNew, CurrentScore);
+            GameLogger.Info(GameLogCategory.Score, $"Game finalised with score {CurrentScore}. New high score: {isNewHighScore}.", this);
+            GameEvents.RaiseGameEnded(isNewHighScore, CurrentScore);
         }
     }
 }

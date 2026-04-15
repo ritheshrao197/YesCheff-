@@ -1,13 +1,11 @@
 // HUDScreen.cs
-// Manages only the player HUD: score, timer, held item, interaction prompt, pause.
+// Manages the gameplay HUD and listens to events only.
 
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 using YesChef.Core;
 using YesChef.Ingredients;
-using YesChef.Player;
-using YesChef.Systems;
 
 namespace YesChef.UI
 {
@@ -29,50 +27,62 @@ namespace YesChef.UI
 
         [Header("Buttons")]
         [SerializeField] private Button pauseButton;
+        [SerializeField] private GameManager gameManager;
+
+        protected override void Awake()
+        {
+            base.Awake();
+
+            if (gameManager == null)
+            {
+                gameManager = FindObjectOfType<GameManager>();
+            }
+        }
 
         private void OnEnable()
         {
-            if (pauseButton) pauseButton.onClick.AddListener(OnPauseClicked);
-            SubscribeToEvents();
+            if (pauseButton != null)
+            {
+                pauseButton.onClick.AddListener(OnPauseClicked);
+            }
+
+            GameEvents.TimerTicked += UpdateTimer;
+            GameEvents.ScoreChanged += UpdateScore;
+            GameEvents.HighScoreChanged += UpdateHighScore;
+            GameEvents.InteractionPromptChanged += ShowPrompt;
+            GameEvents.InteractionPromptCleared += HidePrompt;
+            GameEvents.PlayerPickedUpIngredient += ShowHeldItem;
+            GameEvents.PlayerDroppedIngredient += HideHeldItem;
         }
 
         private void OnDisable()
         {
-            if (pauseButton) pauseButton.onClick.RemoveListener(OnPauseClicked);
-            UnsubscribeFromEvents();
-        }
+            if (pauseButton != null)
+            {
+                pauseButton.onClick.RemoveListener(OnPauseClicked);
+            }
 
-        private void SubscribeToEvents()
-        {
-            TimerSystem.OnTimerTick += UpdateTimer;
-            ScoreSystem.OnScoreChanged += UpdateScore;
-            ScoreSystem.OnHighScoreChanged += UpdateHighScore;
-            PlayerController.OnNearInteractable += ShowPrompt;
-            PlayerController.OnLeftInteractable += HidePrompt;
-            PlayerController.OnPickedUp += ShowHeldItem;
-            PlayerController.OnDropped += HideHeldItem;
-        }
-
-        private void UnsubscribeFromEvents()
-        {
-            TimerSystem.OnTimerTick -= UpdateTimer;
-            ScoreSystem.OnScoreChanged -= UpdateScore;
-            ScoreSystem.OnHighScoreChanged -= UpdateHighScore;
-            PlayerController.OnNearInteractable -= ShowPrompt;
-            PlayerController.OnLeftInteractable -= HidePrompt;
-            PlayerController.OnPickedUp -= ShowHeldItem;
-            PlayerController.OnDropped -= HideHeldItem;
+            GameEvents.TimerTicked -= UpdateTimer;
+            GameEvents.ScoreChanged -= UpdateScore;
+            GameEvents.HighScoreChanged -= UpdateHighScore;
+            GameEvents.InteractionPromptChanged -= ShowPrompt;
+            GameEvents.InteractionPromptCleared -= HidePrompt;
+            GameEvents.PlayerPickedUpIngredient -= ShowHeldItem;
+            GameEvents.PlayerDroppedIngredient -= HideHeldItem;
         }
 
         private void OnPauseClicked()
         {
-            GameManager.Instance.PauseGame();
-            UIManager.Instance?.ShowScreen<PauseScreen>();
+            gameManager?.PauseGame();
         }
 
         private void UpdateTimer(float remaining)
         {
-            if (timerText == null) return;
+            if (timerText == null)
+            {
+                return;
+            }
+
             int mins = Mathf.FloorToInt(remaining / SecondsPerMinute);
             int secs = Mathf.FloorToInt(remaining % SecondsPerMinute);
             timerText.text = string.Format(TimerFormat, mins, secs);
@@ -80,39 +90,52 @@ namespace YesChef.UI
         }
 
         private void UpdateScore(int score) => SetText(scoreText, string.Format(ScoreFormat, score));
-        private void UpdateHighScore(int hs) => SetText(highScoreText, string.Format(BestScoreFormat, hs));
+        private void UpdateHighScore(int highScore) => SetText(highScoreText, string.Format(BestScoreFormat, highScore));
 
         private void ShowPrompt(string prompt)
         {
-            if (interactionPromptText)
+            if (interactionPromptText == null)
             {
-                interactionPromptText.text = prompt;
-                interactionPromptText.gameObject.SetActive(true);
+                return;
             }
+
+            interactionPromptText.text = prompt;
+            interactionPromptText.gameObject.SetActive(true);
         }
 
         private void HidePrompt()
         {
-            if (interactionPromptText) interactionPromptText.gameObject.SetActive(false);
+            if (interactionPromptText != null)
+            {
+                interactionPromptText.gameObject.SetActive(false);
+            }
         }
 
-        private void ShowHeldItem(Ingredient ing)
+        private void ShowHeldItem(Ingredient ingredient)
         {
-            if (heldItemText)
+            if (heldItemText == null || ingredient == null)
             {
-                heldItemText.text = string.Format(HeldItemFormat, ing.Data.displayName, ing.State);
-                heldItemText.gameObject.SetActive(true);
+                return;
             }
+
+            heldItemText.text = string.Format(HeldItemFormat, ingredient.Data.displayName, ingredient.State);
+            heldItemText.gameObject.SetActive(true);
         }
 
         private void HideHeldItem()
         {
-            if (heldItemText) heldItemText.gameObject.SetActive(false);
+            if (heldItemText != null)
+            {
+                heldItemText.gameObject.SetActive(false);
+            }
         }
 
-        private void SetText(TMP_Text text, string value)
+        private static void SetText(TMP_Text text, string value)
         {
-            if (text) text.text = value;
+            if (text != null)
+            {
+                text.text = value;
+            }
         }
     }
 }

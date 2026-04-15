@@ -1,81 +1,72 @@
 // GameManager.cs
-// Central orchestrator. Drives the high-level game state machine:
-// MainMenu → Playing → Paused → GameOver → (restart)
-// Also handles global events like timer expiry and order completion.
-
+// Coordinates high-level session state and system lifecycle.
 
 using UnityEngine;
 using YesChef.Orders;
 using YesChef.Player;
-using YesChef.Stations;
 using YesChef.Systems;
 
 namespace YesChef.Core
 {
-
     public class GameManager : MonoBehaviour
     {
-        // ── Singleton ────────────────────────────────────────────────────
-        public static GameManager Instance { get; private set; }
-
-        // ── Inspector refs ────────────────────────────────────────────────
-        [Header("Systems (assign in Inspector)")]
+        [Header("Systems")]
         [SerializeField] private TimerSystem timerSystem;
         [SerializeField] private ScoreSystem scoreSystem;
         [SerializeField] private OrderManager orderManager;
+        [SerializeField] private StationSystem stationSystem;
         [SerializeField] private PlayerController playerController;
 
-        // ── State ─────────────────────────────────────────────────────────
-        public GameState CurrentState { get; private set; } = GameState.MainMenu;
 
-        // ── Unity lifecycle ───────────────────────────────────────────────
+
+        public GameState CurrentState { get; private set; } = GameState.Start;
+
         private void Awake()
         {
-            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-            Instance = this;
             GameLogger.Info(GameLogCategory.Game, "GameManager initialised.", this);
+            ApplyState(CurrentState, forceReset: true);
         }
 
         private void OnEnable()
         {
-            TimerSystem.OnTimerExpired += HandleTimerExpired;
-            OrderManager.OnOrderCompleted += HandleOrderCompleted;
-            CustomerWindow.OnDeliveryScored += HandleDeliveryScored;
+            GameEvents.TimerExpired += HandleTimerExpired;
+            GameEvents.DeliveryScored += HandleDeliveryScored;
         }
 
         private void OnDisable()
         {
-            TimerSystem.OnTimerExpired -= HandleTimerExpired;
-            OrderManager.OnOrderCompleted -= HandleOrderCompleted;
-            CustomerWindow.OnDeliveryScored -= HandleDeliveryScored;
+            GameEvents.TimerExpired -= HandleTimerExpired;
+            GameEvents.DeliveryScored -= HandleDeliveryScored;
         }
-
-        // ── Public API ────────────────────────────────────────────────────
         public void StartGame()
         {
-            if (CurrentState == GameState.Playing) return;
-            GameLogger.Info(GameLogCategory.Game, "StartGame requested.", this);
-            TransitionTo(GameState.Playing);
+            if (CurrentState == GameState.Playing)
+            {
+                return;
+            }
+
+            TransitionTo(GameState.Playing, forceReset: true);
         }
 
         public void PauseGame()
         {
-            if (CurrentState != GameState.Playing) return;
-            GameLogger.Info(GameLogCategory.Game, "PauseGame requested.", this);
-            TransitionTo(GameState.Paused);
+            if (CurrentState == GameState.Playing)
+            {
+                TransitionTo(GameState.Paused);
+            }
         }
 
         public void ResumeGame()
         {
-            if (CurrentState != GameState.Paused) return;
-            GameLogger.Info(GameLogCategory.Game, "ResumeGame requested.", this);
-            TransitionTo(GameState.Playing);
+            if (CurrentState == GameState.Paused)
+            {
+                TransitionTo(GameState.Playing);
+            }
         }
 
         public void RestartGame()
         {
-            GameLogger.Info(GameLogCategory.Game, "RestartGame requested.", this);
-            TransitionTo(GameState.Playing);
+            TransitionTo(GameState.Start, forceReset: true);
         }
 
         public void QuitGame()
@@ -87,32 +78,47 @@ namespace YesChef.Core
 #endif
         }
 
-        // ── Transitions ───────────────────────────────────────────────────
-        private void TransitionTo(GameState newState)
+        private void TransitionTo(GameState newState, bool forceReset = false)
         {
-            GameLogger.Info(GameLogCategory.Game, $"State transition {CurrentState} -> {newState}.", this);
-            var previousState = CurrentState;
-            CurrentState = newState;
-
-            switch (newState)
+            if (CurrentState == newState && !forceReset)
             {
-                case GameState.Playing:
-                    if (previousState == GameState.Paused)
-                    {
-                        Time.timeScale = 1f;
-                        timerSystem.SetPaused(false);
-                        playerController.SetGameRunning(true);
+                return;
+            }
 
+            GameLogger.Info(GameLogCategory.Game, $"State transition {CurrentState} -> {newState}.", this);
+            CurrentState = newState;
+            ApplyState(newState, forceReset);
+            GameEvents.RaiseGameStateChanged(CurrentState);
+        }
+
+        private void ApplyState(GameState state, bool forceReset = false)
+        {
+            switch (state)
+            {
+                case GameState.Start:
+                    Time.timeScale = 0f;
+                    timerSystem.StopTimer();
+                    orderManager.ResetOrders();
+                    playerController.SetGameRunning(false);
+                    scoreSystem.ResetScore();
+                    break;
+
+                case GameState.Playing:
+                    Time.timeScale = 1f;
+
+                    if (forceReset || timerSystem.Remaining <= 0f || !timerSystem.IsRunning)
+                    {
+                        scoreSystem.ResetScore();
+                        orderManager.StartOrders();
+                        timerSystem.StartTimer();
+                        stationSystem.ResetStations();
                     }
                     else
                     {
-                        Time.timeScale = 1f;
-                        scoreSystem.ResetScore();
-                        timerSystem.StartTimer();
-                        orderManager.StartOrders();
-                        playerController.SetGameRunning(true);
-
+                        timerSystem.SetPaused(false);
                     }
+
+                    playerController.SetGameRunning(true);
                     break;
 
                 case GameState.Paused:
@@ -121,38 +127,24 @@ namespace YesChef.Core
                     playerController.SetGameRunning(false);
                     break;
 
-                case GameState.GameOver:
+                case GameState.End:
                     Time.timeScale = 1f;
                     timerSystem.StopTimer();
                     orderManager.StopOrders();
                     playerController.SetGameRunning(false);
                     scoreSystem.FinaliseGame();
                     break;
-
-                case GameState.MainMenu:
-                    Time.timeScale = 0f;
-                    playerController.SetGameRunning(false);
-                    break;
             }
         }
 
         private void HandleTimerExpired()
         {
-            GameLogger.Info(GameLogCategory.Game, "Timer expired. Moving to GameOver.", this);
-            TransitionTo(GameState.GameOver);
-        }
-
-        // OrderManager fires this — we don't add score here to avoid double-counting
-        // (CustomerWindow.OnDeliveryScored is the canonical score source)
-        private void HandleOrderCompleted(Order order, int score)
-        {
-            GameLogger.Info(GameLogCategory.Orders, $"{GameLogger.DescribeOrder(order)} completed for {score} points.", this);
+            TransitionTo(GameState.End);
         }
 
         private void HandleDeliveryScored(int windowIndex, int score)
         {
             GameLogger.Info(GameLogCategory.Score, $"Window {windowIndex} awarded {score} points.", this);
-
             scoreSystem.AddScore(score);
         }
     }

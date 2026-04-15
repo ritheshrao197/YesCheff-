@@ -1,14 +1,13 @@
 // OrderWindowUI.cs
-// Attached to each customer window UI panel.
-// Shows required ingredients with check marks and an order timer.
+// Renders a single customer order panel.
 
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using YesChef.Orders;
 using YesChef.Ingredients;
+using YesChef.Orders;
 
 namespace YesChef.UI
 {
@@ -20,13 +19,14 @@ namespace YesChef.UI
         private const string OrderTimerFormat = "{0}s";
 
         [Header("References")]
-        [SerializeField] private TMP_Text   orderTimerText;
-        [SerializeField] private TMP_Text   noOrderText;
+        [SerializeField] private TMP_Text orderTimerText;
+        [SerializeField] private TMP_Text noOrderText;
         [SerializeField] private GameObject ingredientSlotContainer;
         [SerializeField] private GameObject ingredientSlotPrefab;
 
+        private readonly List<GameObject> _slots = new List<GameObject>();
+
         private Order _currentOrder;
-        private List<GameObject> _slots = new List<GameObject>();
         private Coroutine _timerRoutine;
 
         private void OnEnable()
@@ -39,13 +39,19 @@ namespace YesChef.UI
             StopTimerRoutine();
         }
 
-        // ── Public API ────────────────────────────────────────────────────
         public void SetOrder(Order order)
         {
             _currentOrder = order;
 
-            if (noOrderText)  noOrderText.gameObject.SetActive(false);
-            if (ingredientSlotContainer) ingredientSlotContainer.SetActive(true);
+            if (noOrderText != null)
+            {
+                noOrderText.gameObject.SetActive(false);
+            }
+
+            if (ingredientSlotContainer != null)
+            {
+                ingredientSlotContainer.SetActive(true);
+            }
 
             RebuildSlots();
             TryStartTimerRoutine();
@@ -55,42 +61,61 @@ namespace YesChef.UI
         {
             _currentOrder = null;
             StopTimerRoutine();
+            ClearSlots();
 
-            foreach (var s in _slots) Destroy(s);
-            _slots.Clear();
+            if (noOrderText != null)
+            {
+                noOrderText.gameObject.SetActive(true);
+            }
 
-            if (noOrderText)  noOrderText.gameObject.SetActive(true);
-            if (ingredientSlotContainer) ingredientSlotContainer.SetActive(false);
-            if (orderTimerText) orderTimerText.text = "";
+            if (ingredientSlotContainer != null)
+            {
+                ingredientSlotContainer.SetActive(false);
+            }
+
+            if (orderTimerText != null)
+            {
+                orderTimerText.text = string.Empty;
+            }
         }
 
         public void RefreshFulfilment()
         {
-            if (_currentOrder == null) return;
-            RebuildSlots();
+            if (_currentOrder != null)
+            {
+                RebuildSlots();
+            }
         }
 
-        // ── Private helpers ───────────────────────────────────────────────
         private void RebuildSlots()
         {
-            foreach (var s in _slots) Destroy(s);
-            _slots.Clear();
+            ClearSlots();
+            if (_currentOrder == null || ingredientSlotContainer == null || ingredientSlotPrefab == null)
+            {
+                return;
+            }
 
-            if (ingredientSlotContainer == null || ingredientSlotPrefab == null) return;
-
+            Dictionary<IngredientData, int> fulfilledCounts = BuildFulfilledCountMap(_currentOrder.FulfilledIngredients);
             for (int i = 0; i < _currentOrder.RequiredIngredients.Count; i++)
             {
-                var go     = Instantiate(ingredientSlotPrefab, ingredientSlotContainer.transform);
-                var label  = go.GetComponentInChildren<TMP_Text>();
-                var image  = go.GetComponent<Image>();
+                IngredientData requiredIngredient = _currentOrder.RequiredIngredients[i];
+                bool isFulfilled = ConsumeFulfilledFlag(requiredIngredient, fulfilledCounts);
 
-                IngredientData req  = _currentOrder.RequiredIngredients[i];
-                bool fulfilled = i < _currentOrder.FulfilledIngredients.Count;
+                GameObject slotObject = Instantiate(ingredientSlotPrefab, ingredientSlotContainer.transform);
+                TMP_Text label = slotObject.GetComponentInChildren<TMP_Text>();
+                Image image = slotObject.GetComponent<Image>();
 
-                if (label) label.text = fulfilled ? $"✓ {req.displayName}" : req.displayName;
-                if (image) image.color = fulfilled ? Color.green * 0.7f : req.preparedColor;
+                if (label != null)
+                {
+                    label.text = isFulfilled ? $"OK {requiredIngredient.displayName}" : requiredIngredient.displayName;
+                }
 
-                _slots.Add(go);
+                if (image != null)
+                {
+                    image.color = isFulfilled ? Color.green * 0.7f : requiredIngredient.preparedColor;
+                }
+
+                _slots.Add(slotObject);
             }
         }
 
@@ -98,15 +123,17 @@ namespace YesChef.UI
         {
             while (_currentOrder != null)
             {
-                if (orderTimerText)
+                if (orderTimerText != null)
                 {
-                    float elapsed = UnityEngine.Time.time - _currentOrder.StartTime;
+                    float elapsed = Time.time - _currentOrder.StartTime;
                     orderTimerText.text = string.Format(OrderTimerFormat, Mathf.FloorToInt(elapsed));
-
-                    // Colour-code urgency
-                    orderTimerText.color = elapsed > HighUrgencyThresholdSeconds ? Color.red :
-                                           elapsed > MediumUrgencyThresholdSeconds ? Color.yellow : Color.white;
+                    orderTimerText.color = elapsed > HighUrgencyThresholdSeconds
+                        ? Color.red
+                        : elapsed > MediumUrgencyThresholdSeconds
+                            ? Color.yellow
+                            : Color.white;
                 }
+
                 yield return new WaitForSeconds(TimerRefreshIntervalSeconds);
             }
 
@@ -133,6 +160,40 @@ namespace YesChef.UI
 
             StopCoroutine(_timerRoutine);
             _timerRoutine = null;
+        }
+
+        private void ClearSlots()
+        {
+            for (int i = 0; i < _slots.Count; i++)
+            {
+                Destroy(_slots[i]);
+            }
+
+            _slots.Clear();
+        }
+
+        private static Dictionary<IngredientData, int> BuildFulfilledCountMap(IReadOnlyList<IngredientData> ingredients)
+        {
+            Dictionary<IngredientData, int> counts = new Dictionary<IngredientData, int>();
+            for (int i = 0; i < ingredients.Count; i++)
+            {
+                IngredientData ingredient = ingredients[i];
+                counts.TryGetValue(ingredient, out int currentCount);
+                counts[ingredient] = currentCount + 1;
+            }
+
+            return counts;
+        }
+
+        private static bool ConsumeFulfilledFlag(IngredientData ingredient, Dictionary<IngredientData, int> fulfilledCounts)
+        {
+            if (!fulfilledCounts.TryGetValue(ingredient, out int remaining) || remaining <= 0)
+            {
+                return false;
+            }
+
+            fulfilledCounts[ingredient] = remaining - 1;
+            return true;
         }
     }
 }

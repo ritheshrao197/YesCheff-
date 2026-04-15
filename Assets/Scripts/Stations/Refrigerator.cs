@@ -1,7 +1,3 @@
-// Refrigerator.cs
-// Gives the player a raw ingredient when they interact.
-// Never runs out of ingredients.
-
 using System;
 using UnityEngine;
 using YesChef.Core;
@@ -13,80 +9,68 @@ namespace YesChef.Stations
     public class Refrigerator : BaseStation
     {
         private const string PickupPrompt = "[E] Pick up ingredient";
+        private static readonly Vector3 SpawnOffset = Vector3.up * 0.5f;
 
         [Header("Refrigerator")]
         [SerializeField] private IngredientRegistry ingredientRegistry;
-        [SerializeField] private GameObject cheesePrefab;
-        [SerializeField] private GameObject vegetablePrefab;
-        [SerializeField] private GameObject meatPrefab;
-
-        // Array indexed by IngredientType (must match enum order)
-        private GameObject[] prefabByType;
-
-        // Cached spawn offset
-        private static readonly Vector3 SpawnOffset = Vector3.up * 0.5f;
+        [SerializeField] private IngredientSpawnCatalog spawnCatalog;
 
         protected override void Awake()
         {
             base.Awake();
             stationName = "Refrigerator";
-
-            // Build lookup table once
-            prefabByType = new GameObject[Enum.GetValues(typeof(IngredientType)).Length];
-            prefabByType[(int)IngredientType.Cheese] = cheesePrefab;
-            prefabByType[(int)IngredientType.Vegetable] = vegetablePrefab;
-            prefabByType[(int)IngredientType.Meat] = meatPrefab;
         }
 
         public override void Interact(PlayerController player)
         {
-            // Fail fast: player already holding something
             if (player.HeldIngredient != null)
             {
                 LogWarning($"Player attempted pickup while already holding {GameLogger.DescribeIngredient(player.HeldIngredient)}.");
                 return;
             }
 
-            // Get random ingredient data
-            IngredientData data = ingredientRegistry.GetRandom();
-            if (data == null)
+            if (ingredientRegistry == null)
+            {
+                LogError("Ingredient registry is not assigned.");
+                return;
+            }
+
+            if (spawnCatalog == null)
+            {
+                LogError("Ingredient spawn catalog is not assigned.");
+                return;
+            }
+
+            IngredientData ingredientData = ingredientRegistry.GetRandom();
+            if (ingredientData == null)
             {
                 LogError("Ingredient registry returned null data.");
                 return;
             }
 
-            // Get the corresponding prefab using the lookup array
-            int typeIndex = (int)data.type;
-            if (typeIndex < 0 || typeIndex >= prefabByType.Length)
+            if (!spawnCatalog.TryGetPrefab(ingredientData, out GameObject ingredientPrefab) || ingredientPrefab == null)
             {
-                LogError($"Invalid ingredient type index: {typeIndex}");
+                LogError($"No prefab configured for ingredient '{ingredientData.displayName}'.");
                 return;
             }
 
-            GameObject selectedPrefab = prefabByType[typeIndex];
-            if (selectedPrefab == null)
-            {
-                LogError($"No prefab assigned for ingredient type {data.type}");
-                return;
-            }
-
-            // Spawn and initialise the ingredient
-            GameObject go = Instantiate(selectedPrefab, transform.position + SpawnOffset, Quaternion.identity);
-            if (!go.TryGetComponent(out Ingredient ingredient))
+            GameObject ingredientObject = Instantiate(ingredientPrefab, transform.position + SpawnOffset, Quaternion.identity);
+            if (!ingredientObject.TryGetComponent(out Ingredient ingredient))
             {
                 LogError("Spawned ingredient prefab is missing an Ingredient component.");
-                Destroy(go);
+                Destroy(ingredientObject);
                 return;
             }
 
-            ingredient.Initialise(data);
+            ingredient.Initialise(ingredientData);
             player.PickUp(ingredient);
-            LogInfo($"Dispensed {data.displayName} to player.");
+            LogInfo($"Dispensed {ingredientData.displayName} to player.");
         }
 
         public override string GetInteractionPrompt()
         {
             return PickupPrompt;
         }
+
     }
 }

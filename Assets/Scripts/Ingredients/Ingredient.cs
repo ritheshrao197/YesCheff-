@@ -9,22 +9,23 @@ namespace YesChef.Ingredients
     [RequireComponent(typeof(Renderer))]
     public class Ingredient : MonoBehaviour
     {
-        // ── Public state ──────────────────────────────────────────────────
+        private static readonly int ColorPropertyId = Shader.PropertyToID("_Color");
+
         public IngredientData Data { get; private set; }
         public IngredientState State { get; private set; } = IngredientState.Raw;
+        public bool IsReady => State == IngredientState.Prepared || (!Data.NeedsPrep && State == IngredientState.Raw);
 
-        // ── Private refs ──────────────────────────────────────────────────
         private Renderer _renderer;
+        private MaterialPropertyBlock _propertyBlock;
 
-        // ── Initialisation ────────────────────────────────────────────────
         public void Initialise(IngredientData data)
         {
             Data = data;
             _renderer = GetComponent<Renderer>();
+            _propertyBlock = new MaterialPropertyBlock();
             SetState(IngredientState.Raw);
         }
 
-        // ── State management ──────────────────────────────────────────────
         public void SetState(IngredientState newState)
         {
             State = newState;
@@ -33,20 +34,22 @@ namespace YesChef.Ingredients
 
         private void UpdateVisual()
         {
-            if (_renderer == null) return;
+            if (_renderer == null || Data == null)
+            {
+                return;
+            }
 
             Color target = State switch
             {
-                IngredientState.Raw        => Data.rawColor,
-                IngredientState.Prepared   => Data.preparedColor,
+                IngredientState.Raw => Data.rawColor,
+                IngredientState.Prepared => Data.preparedColor,
                 IngredientState.Processing => Color.Lerp(Data.rawColor, Data.preparedColor, 0.5f),
-                _                          => Data.rawColor
+                _ => Data.rawColor
             };
 
-            _renderer.material.color = target;
+            _renderer.GetPropertyBlock(_propertyBlock);
+            _propertyBlock.SetColor(ColorPropertyId, target);
+            _renderer.SetPropertyBlock(_propertyBlock);
         }
-
-        public bool IsReady => State == IngredientState.Prepared ||
-                               (!Data.NeedsPrep && State == IngredientState.Raw);
     }
 }

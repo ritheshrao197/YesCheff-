@@ -1,10 +1,9 @@
 // GameOverScreen.cs
-// Manages the game over screen: final score, new high score label, restart/quit.
+// Displays the final score and post-game actions.
 
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
-using YesChef.Systems;
 using YesChef.Core;
 
 namespace YesChef.UI
@@ -18,37 +17,65 @@ namespace YesChef.UI
         [SerializeField] private GameObject newHighScoreLabel;
         [SerializeField] private Button restartButton;
         [SerializeField] private Button quitButton;
+        [SerializeField] private GameManager gameManager;
 
-        private ScoreSystem scoreSystem;
+        protected override void Awake()
+        {
+            base.Awake();
+
+            if (gameManager == null)
+            {
+                gameManager = FindObjectOfType<GameManager>();
+            }
+        }
 
         private void OnEnable()
         {
-            if (restartButton) restartButton.onClick.AddListener(OnRestartClicked);
-            if (quitButton) quitButton.onClick.AddListener(OnQuitClicked);
+            if (restartButton != null)
+            {
+                restartButton.onClick.AddListener(OnRestartClicked);
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.onClick.AddListener(OnQuitClicked);
+            }
         }
 
         private void OnDisable()
         {
-            if (restartButton) restartButton.onClick.RemoveListener(OnRestartClicked);
-            if (quitButton) quitButton.onClick.RemoveListener(OnQuitClicked);
+            if (restartButton != null)
+            {
+                restartButton.onClick.RemoveListener(OnRestartClicked);
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.onClick.RemoveListener(OnQuitClicked);
+            }
         }
 
         public void ShowFinalScore(int score, bool isNewHighScore)
         {
-            if (finalScoreText) finalScoreText.text = string.Format(FinalScoreFormat, score);
-            if (newHighScoreLabel) newHighScoreLabel.SetActive(isNewHighScore);
+            if (finalScoreText != null)
+            {
+                finalScoreText.text = string.Format(FinalScoreFormat, score);
+            }
+
+            if (newHighScoreLabel != null)
+            {
+                newHighScoreLabel.SetActive(isNewHighScore);
+            }
         }
 
         private void OnRestartClicked()
         {
-            GameManager.Instance.RestartGame();
-            // After restart, the game will show start screen again
-            UIManager.Instance?.ShowScreen<StartScreen>();
+            gameManager?.RestartGame();
         }
 
         private void OnQuitClicked()
         {
-            GameManager.Instance.QuitGame();
+            gameManager?.QuitGame();
         }
     }
 }

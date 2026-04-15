@@ -1,7 +1,6 @@
 // TimerSystem.cs
-// Counts down from gameDuration seconds, firing events while running and when time expires.
+// Counts down from gameDuration seconds and broadcasts timer events.
 
-using System;
 using System.Collections;
 using UnityEngine;
 using YesChef.Core;
@@ -12,9 +11,6 @@ namespace YesChef.Systems
     {
         private const float DefaultGameDuration = 180f;
         private const float TickIntervalSeconds = 0.5f;
-
-        public static event Action<float> OnTimerTick;
-        public static event Action OnTimerExpired;
 
         [SerializeField] private GameConfig gameConfig;
 
@@ -46,7 +42,7 @@ namespace YesChef.Systems
             IsPaused = false;
             _timerEndTime = Time.unscaledTime + GameDuration;
             _timerRoutine = StartCoroutine(RunTimer());
-            OnTimerTick?.Invoke(Remaining);
+            GameEvents.RaiseTimerTicked(Remaining);
             GameLogger.Info(GameLogCategory.Timer, $"Timer started at {GameDuration:0.0}s.", this);
         }
 
@@ -76,11 +72,10 @@ namespace YesChef.Systems
             {
                 _timerEndTime += Time.unscaledTime - _pausedAt;
                 _pausedAt = 0f;
-                OnTimerTick?.Invoke(Remaining);
+                GameEvents.RaiseTimerTicked(Remaining);
             }
 
             GameLogger.Info(GameLogCategory.Timer, paused ? "Timer paused." : "Timer resumed.", this);
-            GameLogger.Info(GameLogCategory.Timer, $"Timer {(paused ? "paused" : "resumed")} with {Remaining:0.0}s remaining.", this);
         }
 
         private IEnumerator RunTimer()
@@ -90,7 +85,7 @@ namespace YesChef.Systems
                 if (!IsPaused)
                 {
                     Remaining = Mathf.Max(0f, _timerEndTime - Time.unscaledTime);
-                    OnTimerTick?.Invoke(Remaining);
+                    GameEvents.RaiseTimerTicked(Remaining);
 
                     if (Remaining <= 0f)
                     {
@@ -98,7 +93,7 @@ namespace YesChef.Systems
                         IsPaused = false;
                         _pausedAt = 0f;
                         GameLogger.Info(GameLogCategory.Timer, "Timer reached zero.", this);
-                        OnTimerExpired?.Invoke();
+                        GameEvents.RaiseTimerExpired();
                         _timerRoutine = null;
                         yield break;
                     }

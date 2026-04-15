@@ -14,12 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   systems:
     timer:
-      gameDuration: 180
+      gameDuration: 30
     orders:
       maxWindows: 4
       respawnDelay: 5
       initialSpawnDelayMin: 0.5
       initialSpawnDelayMax: 2
-      minIngredientsPerOrder: 2
-      maxIngredientsPerOrder: 3
-      minIngredientCountChance: 0.39
+      minIngredientsPerOrder: 1
+      maxIngredientsPerOrder: 1
+      minIngredientCountChance: 0.5

@@ -1,5 +1,5 @@
 // PauseScreen.cs
-// Manages the pause menu: resume and quit buttons.
+// Manages the pause menu controls.
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,28 +12,52 @@ namespace YesChef.UI
         [Header("Pause Screen")]
         [SerializeField] private Button resumeButton;
         [SerializeField] private Button quitButton;
+        [SerializeField] private GameManager gameManager;
+
+        protected override void Awake()
+        {
+            base.Awake();
+
+            if (gameManager == null)
+            {
+                gameManager = FindObjectOfType<GameManager>();
+            }
+        }
 
         private void OnEnable()
         {
-            if (resumeButton) resumeButton.onClick.AddListener(OnResumeClicked);
-            if (quitButton) quitButton.onClick.AddListener(OnQuitClicked);
+            if (resumeButton != null)
+            {
+                resumeButton.onClick.AddListener(OnResumeClicked);
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.onClick.AddListener(OnQuitClicked);
+            }
         }
 
         private void OnDisable()
         {
-            if (resumeButton) resumeButton.onClick.RemoveListener(OnResumeClicked);
-            if (quitButton) quitButton.onClick.RemoveListener(OnQuitClicked);
+            if (resumeButton != null)
+            {
+                resumeButton.onClick.RemoveListener(OnResumeClicked);
+            }
+
+            if (quitButton != null)
+            {
+                quitButton.onClick.RemoveListener(OnQuitClicked);
+            }
         }
 
         private void OnResumeClicked()
         {
-            GameManager.Instance.ResumeGame();
-            UIManager.Instance?.ShowScreen<HUDScreen>();
+            gameManager?.ResumeGame();
         }
 
         private void OnQuitClicked()
         {
-            GameManager.Instance.QuitGame();
+            gameManager?.QuitGame();
         }
     }
 }

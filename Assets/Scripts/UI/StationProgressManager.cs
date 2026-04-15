@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using YesChef.Core;
 using YesChef.Stations;
 
 namespace YesChef.UI
@@ -16,50 +17,62 @@ namespace YesChef.UI
 
         private void OnEnable()
         {
-            Table.OnChopStarted += ShowChopProgress;
-            Table.OnChopProgress += UpdateChopProgress;
-            Table.OnChopComplete += HideChopProgress;
+            GameEvents.ChopStarted += ShowChopProgress;
+            GameEvents.ChopProgressChanged += UpdateChopProgress;
+            GameEvents.ChopCompleted += HideChopProgress;
 
-            Stove.OnSlotStarted += ShowStoveSlot;
-            Stove.OnSlotProgress += UpdateStoveSlot;
-            Stove.OnSlotComplete += HideStoveSlot;
+            GameEvents.StoveSlotStarted += ShowStoveSlot;
+            GameEvents.StoveSlotProgressChanged += UpdateStoveSlot;
+            GameEvents.StoveSlotCompleted += HideStoveSlot;
         }
 
         private void OnDisable()
         {
-            Table.OnChopStarted -= ShowChopProgress;
-            Table.OnChopProgress -= UpdateChopProgress;
-            Table.OnChopComplete -= HideChopProgress;
+            GameEvents.ChopStarted -= ShowChopProgress;
+            GameEvents.ChopProgressChanged -= UpdateChopProgress;
+            GameEvents.ChopCompleted -= HideChopProgress;
 
-            Stove.OnSlotStarted -= ShowStoveSlot;
-            Stove.OnSlotProgress -= UpdateStoveSlot;
-            Stove.OnSlotComplete -= HideStoveSlot;
+            GameEvents.StoveSlotStarted -= ShowStoveSlot;
+            GameEvents.StoveSlotProgressChanged -= UpdateStoveSlot;
+            GameEvents.StoveSlotCompleted -= HideStoveSlot;
         }
 
-        private void ShowChopProgress() => SetPanelActive(chopProgressPanel, true);
-        private void HideChopProgress() => SetPanelActive(chopProgressPanel, false);
-        private void UpdateChopProgress(float t)
+        private void ShowChopProgress(Table table) => SetPanelActive(chopProgressPanel, true);
+        private void HideChopProgress(Table table) => SetPanelActive(chopProgressPanel, false);
+
+        private void UpdateChopProgress(Table table, float progress)
         {
-            if (chopProgressSlider) chopProgressSlider.value = t;
+            if (chopProgressSlider != null)
+            {
+                chopProgressSlider.value = progress;
+            }
         }
 
-        private void ShowStoveSlot(int slot) => SetPanelActive(stoveSlotPanels, slot, true);
-        private void HideStoveSlot(int slot) => SetPanelActive(stoveSlotPanels, slot, false);
-        private void UpdateStoveSlot(int slot, float t)
+        private void ShowStoveSlot(Stove stove, int slotIndex) => SetPanelActive(stoveSlotPanels, slotIndex, true);
+        private void HideStoveSlot(Stove stove, int slotIndex) => SetPanelActive(stoveSlotPanels, slotIndex, false);
+
+        private void UpdateStoveSlot(Stove stove, int slotIndex, float progress)
         {
-            if (stoveSlotSliders != null && slot >= 0 && slot < stoveSlotSliders.Length && stoveSlotSliders[slot])
-                stoveSlotSliders[slot].value = t;
+            if (stoveSlotSliders != null && slotIndex >= 0 && slotIndex < stoveSlotSliders.Length && stoveSlotSliders[slotIndex] != null)
+            {
+                stoveSlotSliders[slotIndex].value = progress;
+            }
         }
 
-        private void SetPanelActive(GameObject panel, bool active)
+        private static void SetPanelActive(GameObject panel, bool active)
         {
-            if (panel) panel.SetActive(active);
+            if (panel != null)
+            {
+                panel.SetActive(active);
+            }
         }
 
-        private void SetPanelActive(GameObject[] panels, int index, bool active)
+        private static void SetPanelActive(GameObject[] panels, int index, bool active)
         {
-            if (panels != null && index >= 0 && index < panels.Length && panels[index])
+            if (panels != null && index >= 0 && index < panels.Length && panels[index] != null)
+            {
                 panels[index].SetActive(active);
+            }
         }
     }
 }
