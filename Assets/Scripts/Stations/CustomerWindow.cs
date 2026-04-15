@@ -28,18 +28,21 @@ namespace YesChef.Stations
         {
             base.Awake();
             stationName = "Customer Window";
+            ResolveOrderManager(logIfMissing: false);
         }
 
         private void Start()
         {
-            if (_orderManager == null)
-            {
-                LogError("OrderManager reference not set in inspector.");
-            }
+            ResolveOrderManager(logIfMissing: true);
         }
 
         public override void Interact(PlayerController player)
         {
+            if (!ResolveOrderManager(logIfMissing: true))
+            {
+                return;
+            }
+
             if (player.HeldIngredient == null)
             {
                 LogVerbose($"Window {windowIndex} interaction ignored because player has empty hands.");
@@ -88,8 +91,36 @@ namespace YesChef.Stations
 
         public override string GetInteractionPrompt()
         {
+            ResolveOrderManager(logIfMissing: false);
             Order order = _orderManager?.GetOrderAtWindow(windowIndex);
             return order == null ? "No order here" : "[E] Deliver ingredient";
+        }
+
+        private bool ResolveOrderManager(bool logIfMissing)
+        {
+            if (_orderManager != null)
+            {
+                return true;
+            }
+
+#if UNITY_2023_1_OR_NEWER
+            _orderManager = FindFirstObjectByType<OrderManager>();
+#else
+            _orderManager = FindObjectOfType<OrderManager>();
+#endif
+
+            if (_orderManager != null)
+            {
+                LogVerbose("Resolved OrderManager automatically at runtime.");
+                return true;
+            }
+
+            if (logIfMissing)
+            {
+                LogError("OrderManager reference is missing and could not be resolved in the scene.");
+            }
+
+            return false;
         }
     }
 }
