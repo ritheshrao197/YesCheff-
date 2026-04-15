@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class FloatingScorePopup : MonoBehaviour
 {
+    private const float PopupTravelDistance = 30f;
+    private const float FullyOpaqueAlpha = 1f;
+
     [SerializeField] private TMP_Text textComponent;
     [SerializeField] private float lifetime = 1.5f;
     [SerializeField] private AnimationCurve moveCurve; // optional
@@ -25,8 +28,8 @@ public class FloatingScorePopup : MonoBehaviour
         {
             elapsed += Time.deltaTime;
             float t = elapsed / lifetime;
-            transform.localPosition = startPos + Vector3.up * (t * 30f); // move up 30 units
-            textComponent.color = new Color(originalColor.r, originalColor.g, originalColor.b, 1f - t);
+            transform.localPosition = startPos + Vector3.up * (t * PopupTravelDistance);
+            textComponent.color = new Color(originalColor.r, originalColor.g, originalColor.b, FullyOpaqueAlpha - t);
             yield return null;
         }
         onComplete?.Invoke();

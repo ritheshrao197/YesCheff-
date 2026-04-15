@@ -13,6 +13,13 @@ namespace YesChef.UI
 {
     public class HUDScreen : BaseScreen
     {
+        private const float SecondsPerMinute = 60f;
+        private const float LowTimeWarningSeconds = 30f;
+        private const string TimerFormat = "{0}:{1:D2}";
+        private const string ScoreFormat = "Score: {0}";
+        private const string BestScoreFormat = "Best: {0}";
+        private const string HeldItemFormat = "Holding: {0} ({1})";
+
         [Header("HUD Elements")]
         [SerializeField] private TMP_Text scoreText;
         [SerializeField] private TMP_Text highScoreText;
@@ -66,14 +73,14 @@ namespace YesChef.UI
         private void UpdateTimer(float remaining)
         {
             if (timerText == null) return;
-            int mins = Mathf.FloorToInt(remaining / 60f);
-            int secs = Mathf.FloorToInt(remaining % 60f);
-            timerText.text = $"{mins}:{secs:D2}";
-            timerText.color = remaining <= 30f ? Color.red : Color.white;
+            int mins = Mathf.FloorToInt(remaining / SecondsPerMinute);
+            int secs = Mathf.FloorToInt(remaining % SecondsPerMinute);
+            timerText.text = string.Format(TimerFormat, mins, secs);
+            timerText.color = remaining <= LowTimeWarningSeconds ? Color.red : Color.white;
         }
 
-        private void UpdateScore(int score) => SetText(scoreText, $"Score: {score}");
-        private void UpdateHighScore(int hs) => SetText(highScoreText, $"Best: {hs}");
+        private void UpdateScore(int score) => SetText(scoreText, string.Format(ScoreFormat, score));
+        private void UpdateHighScore(int hs) => SetText(highScoreText, string.Format(BestScoreFormat, hs));
 
         private void ShowPrompt(string prompt)
         {
@@ -93,7 +100,7 @@ namespace YesChef.UI
         {
             if (heldItemText)
             {
-                heldItemText.text = $"Holding: {ing.Data.displayName} ({ing.State})";
+                heldItemText.text = string.Format(HeldItemFormat, ing.Data.displayName, ing.State);
                 heldItemText.gameObject.SetActive(true);
             }
         }

@@ -16,6 +16,9 @@ namespace YesChef.Player
     [RequireComponent(typeof(CharacterController))]
     public class PlayerController : MonoBehaviour
     {
+        private const float MovementInputThreshold = 0.01f;
+        private const float GravityStrength = 9.81f;
+
         // ── Events ────────────────────────────────────────────────────────
         public static event Action<Ingredient> OnPickedUp;
         public static event Action             OnDropped;
@@ -99,7 +102,7 @@ namespace YesChef.Player
             float v = Input.GetAxis("Vertical");
             Vector3 dir = new Vector3(h, 0f, v).normalized;
 
-            if (dir.sqrMagnitude > 0.01f)
+            if (dir.sqrMagnitude > MovementInputThreshold)
             {
                 _cc.Move(dir * moveSpeed * Time.deltaTime);
                 transform.forward = dir;   // Face movement direction
@@ -111,7 +114,7 @@ namespace YesChef.Player
             }
 
             // Gravity
-            _cc.Move(Vector3.down * 9.81f * Time.deltaTime);
+            _cc.Move(Vector3.down * GravityStrength * Time.deltaTime);
         }
 
         private void HandleInteractionScan()

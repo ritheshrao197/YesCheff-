@@ -13,6 +13,10 @@ namespace YesChef.Stations
 {
     public class Stove : BaseStation
     {
+        private const string PickupPrompt = "[E] Pick up cooked meat";
+        private const string PlacePrompt = "[E] Place meat to cook";
+        private const string FullPrompt = "Stove full";
+
         // ── Events ────────────────────────────────────────────────────────
         // Per-slot progress (slotIndex, 0..1)
         public static event Action<int, float> OnSlotProgress;
@@ -120,13 +124,13 @@ namespace YesChef.Stations
             for (int i = 0; i < slotCount; i++)
             {
                 if (_slots[i] != null && !_isCooking[i] && _slots[i].State == IngredientState.Prepared)
-                    return "[E] Pick up cooked meat";
+                    return PickupPrompt;
             }
             for (int i = 0; i < slotCount; i++)
             {
-                if (_slots[i] == null) return "[E] Place meat to cook";
+                if (_slots[i] == null) return PlacePrompt;
             }
-            return "Stove full";
+            return FullPrompt;
         }
     }
 }

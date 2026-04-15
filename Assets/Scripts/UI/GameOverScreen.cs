@@ -11,6 +11,8 @@ namespace YesChef.UI
 {
     public class GameOverScreen : BaseScreen
     {
+        private const string FinalScoreFormat = "Final Score: {0}";
+
         [Header("Game Over Screen")]
         [SerializeField] private TMP_Text finalScoreText;
         [SerializeField] private GameObject newHighScoreLabel;
@@ -33,7 +35,7 @@ namespace YesChef.UI
 
         public void ShowFinalScore(int score, bool isNewHighScore)
         {
-            if (finalScoreText) finalScoreText.text = $"Final Score: {score}";
+            if (finalScoreText) finalScoreText.text = string.Format(FinalScoreFormat, score);
             if (newHighScoreLabel) newHighScoreLabel.SetActive(isNewHighScore);
         }
 

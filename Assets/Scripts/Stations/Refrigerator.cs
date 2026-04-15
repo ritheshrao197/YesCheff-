@@ -2,6 +2,7 @@
 // Gives the player a raw ingredient when they interact.
 // Never runs out of ingredients.
 
+using System;
 using UnityEngine;
 using YesChef.Core;
 using YesChef.Ingredients;
@@ -11,6 +12,8 @@ namespace YesChef.Stations
 {
     public class Refrigerator : BaseStation
     {
+        private const string PickupPrompt = "[E] Pick up ingredient";
+
         [Header("Refrigerator")]
         [SerializeField] private IngredientRegistry ingredientRegistry;
         [SerializeField] private GameObject cheesePrefab;
@@ -29,7 +32,7 @@ namespace YesChef.Stations
             stationName = "Refrigerator";
 
             // Build lookup table once
-            prefabByType = new GameObject[3];
+            prefabByType = new GameObject[Enum.GetValues(typeof(IngredientType)).Length];
             prefabByType[(int)IngredientType.Cheese] = cheesePrefab;
             prefabByType[(int)IngredientType.Vegetable] = vegetablePrefab;
             prefabByType[(int)IngredientType.Meat] = meatPrefab;
@@ -83,7 +86,7 @@ namespace YesChef.Stations
 
         public override string GetInteractionPrompt()
         {
-            return "[E] Pick up ingredient";
+            return PickupPrompt;
         }
     }
 }

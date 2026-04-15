@@ -13,6 +13,11 @@ namespace YesChef.Stations
 {
     public class Table : BaseStation
     {
+        private static readonly Vector3 IngredientPlacementOffset = Vector3.up * 0.5f;
+        private const string PickupPrompt = "[E] Pick up chopped vegetable";
+        private const string ChoppingPrompt = "Chopping...";
+        private const string PlacePrompt = "[E] Place vegetable to chop";
+
         // ── Events ────────────────────────────────────────────────────────
         public static event Action<float> OnChopProgress;   // 0..1
         public static event Action         OnChopComplete;
@@ -68,7 +73,7 @@ namespace YesChef.Stations
 
                 player.Drop();
                 _currentIngredient = ing;
-                _currentIngredient.transform.position = transform.position + Vector3.up * 0.5f;
+                _currentIngredient.transform.position = transform.position + IngredientPlacementOffset;
                 _currentIngredient.gameObject.SetActive(true);
                 LogInfo($"Started chopping {GameLogger.DescribeIngredient(_currentIngredient)}.");
 
@@ -100,10 +105,10 @@ namespace YesChef.Stations
         public override string GetInteractionPrompt()
         {
             if (_currentIngredient != null && !_isChopping && _currentIngredient.State == IngredientState.Prepared)
-                return "[E] Pick up chopped vegetable";
+                return PickupPrompt;
             if (_isChopping)
-                return "Chopping...";
-            return "[E] Place vegetable to chop";
+                return ChoppingPrompt;
+            return PlacePrompt;
         }
     }
 }

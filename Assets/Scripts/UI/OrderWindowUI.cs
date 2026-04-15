@@ -14,6 +14,11 @@ namespace YesChef.UI
 {
     public class OrderWindowUI : MonoBehaviour
     {
+        private const float TimerRefreshIntervalSeconds = 0.5f;
+        private const float HighUrgencyThresholdSeconds = 30f;
+        private const float MediumUrgencyThresholdSeconds = 15f;
+        private const string OrderTimerFormat = "{0}s";
+
         [Header("References")]
         [SerializeField] private TMP_Text   orderTimerText;
         [SerializeField] private TMP_Text   noOrderText;
@@ -96,13 +101,13 @@ namespace YesChef.UI
                 if (orderTimerText)
                 {
                     float elapsed = UnityEngine.Time.time - _currentOrder.StartTime;
-                    orderTimerText.text = $"{Mathf.FloorToInt(elapsed)}s";
+                    orderTimerText.text = string.Format(OrderTimerFormat, Mathf.FloorToInt(elapsed));
 
                     // Colour-code urgency
-                    orderTimerText.color = elapsed > 30f ? Color.red :
-                                           elapsed > 15f ? Color.yellow : Color.white;
+                    orderTimerText.color = elapsed > HighUrgencyThresholdSeconds ? Color.red :
+                                           elapsed > MediumUrgencyThresholdSeconds ? Color.yellow : Color.white;
                 }
-                yield return new WaitForSeconds(0.5f);
+                yield return new WaitForSeconds(TimerRefreshIntervalSeconds);
             }
 
             _timerRoutine = null;

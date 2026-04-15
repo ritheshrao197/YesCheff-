@@ -20,8 +20,7 @@ namespace YesChef.Stations
         // ── Inspector ─────────────────────────────────────────────────────
         [SerializeField] private int windowIndex;
 
-        // ── Dependencies ──────────────────────────────────────────────────
-        private OrderManager _orderManager;
+        [SerializeField] private OrderManager _orderManager;
 
         public int WindowIndex => windowIndex;
 
@@ -33,10 +32,9 @@ namespace YesChef.Stations
 
         private void Start()
         {
-            _orderManager = FindObjectOfType<OrderManager>();
             if (_orderManager == null)
             {
-                LogError("No OrderManager found in scene.");
+                LogError("OrderManager reference not set in inspector.");
             }
         }
 
