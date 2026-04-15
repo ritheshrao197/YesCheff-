@@ -53,6 +53,7 @@ namespace YesChef.UI
             GameEvents.InteractionPromptCleared += HidePrompt;
             GameEvents.PlayerPickedUpIngredient += ShowHeldItem;
             GameEvents.PlayerDroppedIngredient += HideHeldItem;
+            ResetScreen();
         }
 
         private void OnDisable()
@@ -136,6 +137,12 @@ namespace YesChef.UI
             {
                 text.text = value;
             }
+        }
+        public override void ResetScreen()
+        {
+            UpdateScore(0);
+            HidePrompt();
+            HideHeldItem();
         }
     }
 }

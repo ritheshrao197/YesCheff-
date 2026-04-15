@@ -1,4 +1,6 @@
+using System;
 using UnityEngine;
+using YesChef.Systems;
 
 namespace YesChef.Core
 {
@@ -8,7 +10,7 @@ namespace YesChef.Core
     /// </summary>
     public static class GameLogger
     {
-        public static bool EnableInfoLogs = true;
+        public static bool EnableInfoLogs = false;
         public static bool EnableWarningLogs = true;
         public static bool EnableVerboseLogs = false;
 
@@ -64,5 +66,6 @@ namespace YesChef.Core
         {
             return $"[YesChef][{category}] {message}";
         }
+
     }
 }

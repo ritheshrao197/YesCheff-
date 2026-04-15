@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using YesChef.Core;
 using YesChef.Stations;
 namespace YesChef.Systems
 {
@@ -15,7 +16,7 @@ namespace YesChef.Systems
         {
             if (stove == null || refrigerator == null || cuttingBoard == null)
             {
-                Debug.LogError("Station references not set in StationSystem.");
+                GameLogger.Error(GameLogCategory.Stations, "StationSystem is missing references to one or more stations.", this);
             }
         }
 

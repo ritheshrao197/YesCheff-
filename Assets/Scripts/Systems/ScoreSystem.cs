@@ -52,6 +52,7 @@ namespace YesChef.Systems
 
             GameLogger.Info(GameLogCategory.Score, $"Game finalised with score {CurrentScore}. New high score: {isNewHighScore}.", this);
             GameEvents.RaiseGameEnded(isNewHighScore, CurrentScore);
+            
         }
     }
 }

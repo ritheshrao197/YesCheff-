@@ -46,12 +46,12 @@ public static class SaveSystem
             }
 
             File.WriteAllText(SaveFilePath, finalContent);
-            Debug.Log($"Game data saved to {SaveFilePath}");
+            GameLogger.Info(GameLogCategory.Game, $"Game data saved to {SaveFilePath}");
             return true;
         }
         catch (Exception e)
         {
-            Debug.LogError($"Save failed: {e.Message}");
+            GameLogger.Error(GameLogCategory.Game, $"Save failed: {e.Message}");
             return false;
         }
     }
@@ -72,10 +72,10 @@ public static class SaveSystem
         }
         catch (Exception e)
         {
-            Debug.LogError($"Load failed: {e.Message}");
+            GameLogger.Error(GameLogCategory.Game, $"Load failed: {e.Message}");
             if (deleteOnMismatch)
             {
-                Debug.LogWarning("Deleting incompatible save file. A new one will be created.");
+                GameLogger.Warning(GameLogCategory.Game, "Deleting incompatible save file. A new one will be created.");
                 DeleteSave();
             }
             return new T();

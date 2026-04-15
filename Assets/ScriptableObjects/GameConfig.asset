@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   systems:
     timer:
-      gameDuration: 30
+      gameDuration: 180
     orders:
       maxWindows: 4
       respawnDelay: 5

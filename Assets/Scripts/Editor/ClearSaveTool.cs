@@ -2,6 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 using System.IO;
+using YesChef.Core;
 
 namespace YesChef.EditorTools
 {
@@ -31,13 +32,13 @@ namespace YesChef.EditorTools
                     AssetDatabase.Refresh();
                     EditorUtility.DisplayDialog("Success", 
                         "Saved game data has been cleared.", "OK");
-                    Debug.Log($"Save file deleted: {savePath}");
+                    GameLogger.Info(GameLogCategory.Game, "Saved game data has been cleared.");
                 }
                 catch (System.Exception e)
                 {
                     EditorUtility.DisplayDialog("Error", 
                         $"Failed to delete save file:\n{e.Message}", "OK");
-                    Debug.LogError($"Clear save failed: {e.Message}");
+                    GameLogger.Error(GameLogCategory.Game, $"Failed to delete save file:\n{e.Message}");
                 }
             }
         }
