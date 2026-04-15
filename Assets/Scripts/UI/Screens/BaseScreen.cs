@@ -8,7 +8,7 @@ namespace YesChef.UI
     public abstract class BaseScreen : MonoBehaviour
     {
         [Header("Base Screen")]
-        [SerializeField] protected CanvasGroup canvasGroup; // optional, for fade/block raycasts
+        [SerializeField] protected CanvasGroup canvasGroup; 
 
         protected virtual void Awake()
         {
@@ -40,7 +40,7 @@ namespace YesChef.UI
 
         public virtual void ResetScreen()
         {
-            // Override in derived classes if needed
+            // Override in derived classes to reset screen state between rounds.
         }
     }
 }

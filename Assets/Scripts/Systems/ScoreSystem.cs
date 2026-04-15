@@ -17,9 +17,9 @@ namespace YesChef.Systems
 
         private void Awake()
         {
-            GameDataManager.Initialise(encryptionConfig);
+            SaveSystem.Initialise(encryptionConfig);
 
-            HighScore = GameDataManager.Load<SaveContainer>().Highscore;
+            HighScore = SaveSystem.Load<SaveContainer>().Highscore;
             GameEvents.RaiseHighScoreChanged(HighScore);
             GameLogger.Info(GameLogCategory.Score, $"Loaded high score: {HighScore}.", this);
         }
@@ -45,7 +45,7 @@ namespace YesChef.Systems
             {
                 HighScore = CurrentScore;
                 var saveContainer = new SaveContainer { Highscore = HighScore };
-                GameDataManager.Save(saveContainer);
+                SaveSystem.Save(saveContainer);
                 GameEvents.RaiseHighScoreChanged(HighScore);
                 GameLogger.Info(GameLogCategory.Score, $"New high score saved: {HighScore}.", this);
             }

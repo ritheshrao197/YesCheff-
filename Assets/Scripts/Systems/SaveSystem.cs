@@ -1,4 +1,3 @@
-// ==================== Game Data Manager ====================
 using System;
 using System.IO;
 using System.Security.Cryptography;
@@ -6,7 +5,7 @@ using System.Text;
 using UnityEngine;
 using YesChef.Core;
 
-public static class GameDataManager
+public static class SaveSystem
 {
     private const string SAVE_FILE_NAME = "gameData.rdx";
     private static EncryptionConfig config;
