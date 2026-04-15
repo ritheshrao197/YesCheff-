@@ -10,7 +10,6 @@ using YesChef.Interfaces;
 
 namespace YesChef.Player
 {
-    // ── Simple Player FSM ─────────────────────────────────────────────────
     public enum PlayerState { Idle, Moving, Interacting }
 
     [RequireComponent(typeof(CharacterController))]
@@ -18,14 +17,13 @@ namespace YesChef.Player
     {
         private const float MovementInputThreshold = 0.01f;
         private const float GravityStrength = 9.81f;
+        private const int MaxInteractionHits = 16;
 
-        // ── Events ────────────────────────────────────────────────────────
         public static event Action<Ingredient> OnPickedUp;
-        public static event Action             OnDropped;
-        public static event Action<string>     OnNearInteractable; // prompt text
-        public static event Action             OnLeftInteractable;
+        public static event Action OnDropped;
+        public static event Action<string> OnNearInteractable;
+        public static event Action OnLeftInteractable;
 
-        // ── Inspector ─────────────────────────────────────────────────────
         [Header("Movement")]
         [SerializeField] private float moveSpeed = 5f;
 
@@ -36,18 +34,21 @@ namespace YesChef.Player
         [Header("Item Hold Offset")]
         [SerializeField] private Vector3 holdOffset = new Vector3(0.5f, 0.8f, 0.5f);
 
-        // ── State ─────────────────────────────────────────────────────────
         public PlayerState State { get; private set; } = PlayerState.Idle;
         public Ingredient HeldIngredient { get; private set; }
 
-        private CharacterController _cc;
-        private IInteractable _nearestInteractable;
-        private bool _isGameRunning = false;
+        private readonly Collider[] _interactionHits = new Collider[MaxInteractionHits];
 
-        // ── Unity lifecycle ───────────────────────────────────────────────
+        private CharacterController _cc;
+        private Transform _cachedTransform;
+        private IInteractable _nearestInteractable;
+        private string _currentPrompt;
+        private bool _isGameRunning;
+
         private void Awake()
         {
             _cc = GetComponent<CharacterController>();
+            _cachedTransform = transform;
             GameLogger.Verbose(GameLogCategory.Player, "Player controller initialised.", this);
         }
 
@@ -58,25 +59,28 @@ namespace YesChef.Player
             HandleMovement();
             HandleInteractionScan();
             HandleInteractionInput();
-            UpdateHeldItemPosition();
         }
 
-        // ── Public API ────────────────────────────────────────────────────
         public void SetGameRunning(bool running)
         {
-            GameLogger.Info(GameLogCategory.Player, $"Player input {(running ? "enabled" : "disabled")}.", this);
-
             if (_isGameRunning == running) return;
 
             _isGameRunning = running;
+            GameLogger.Info(GameLogCategory.Player, $"Player input {(running ? "enabled" : "disabled")}.", this);
+
+            if (!running)
+            {
+                ClearNearestInteractable();
+                TransitionTo(PlayerState.Idle);
+            }
         }
 
         public void PickUp(Ingredient ingredient)
         {
-            if (HeldIngredient != null) return;  // Can't hold two things
+            if (HeldIngredient != null || ingredient == null) return;
 
             HeldIngredient = ingredient;
-            ingredient.transform.SetParent(transform);
+            ingredient.transform.SetParent(_cachedTransform);
             ingredient.transform.localPosition = holdOffset;
             ingredient.gameObject.SetActive(true);
             OnPickedUp?.Invoke(ingredient);
@@ -84,28 +88,26 @@ namespace YesChef.Player
             GameLogger.Info(GameLogCategory.Player, $"Picked up {GameLogger.DescribeIngredient(ingredient)}.", this);
         }
 
-        /// <summary>Removes the held item reference WITHOUT destroying the object.</summary>
         public void Drop()
         {
             if (HeldIngredient == null) return;
 
-            HeldIngredient.transform.SetParent(null);
-            GameLogger.Info(GameLogCategory.Player, $"Dropped {GameLogger.DescribeIngredient(HeldIngredient)}.", this);
+            Ingredient droppedIngredient = HeldIngredient;
+            droppedIngredient.transform.SetParent(null);
             HeldIngredient = null;
             OnDropped?.Invoke();
+            GameLogger.Info(GameLogCategory.Player, $"Dropped {GameLogger.DescribeIngredient(droppedIngredient)}.", this);
         }
 
-        // ── Private helpers ───────────────────────────────────────────────
         private void HandleMovement()
         {
             float h = Input.GetAxis("Horizontal");
             float v = Input.GetAxis("Vertical");
-            Vector3 dir = new Vector3(h, 0f, v).normalized;
+            Vector3 moveDirection = new Vector3(h, 0f, v).normalized;
 
-            if (dir.sqrMagnitude > MovementInputThreshold)
+            if (moveDirection.sqrMagnitude > MovementInputThreshold)
             {
-                _cc.Move(dir * moveSpeed * Time.deltaTime);
-                transform.forward = dir;   // Face movement direction
+                _cachedTransform.forward = moveDirection;
                 TransitionTo(PlayerState.Moving);
             }
             else
@@ -113,68 +115,86 @@ namespace YesChef.Player
                 TransitionTo(PlayerState.Idle);
             }
 
-            // Gravity
-            _cc.Move(Vector3.down * GravityStrength * Time.deltaTime);
+            Vector3 movement = (moveDirection * moveSpeed) + (Vector3.down * GravityStrength);
+            _cc.Move(movement * Time.deltaTime);
         }
 
         private void HandleInteractionScan()
         {
-            // Find all colliders within radius on the interaction layer
-            Collider[] hits = Physics.OverlapSphere(transform.position, interactionRadius, interactionMask);
+            int hitCount = Physics.OverlapSphereNonAlloc(
+                _cachedTransform.position,
+                interactionRadius,
+                _interactionHits,
+                interactionMask);
 
             IInteractable closest = null;
-            float closestDist = float.MaxValue;
+            float closestSqrDistance = float.MaxValue;
+            Vector3 origin = _cachedTransform.position;
 
-            foreach (var hit in hits)
+            for (int i = 0; i < hitCount; i++)
             {
-                var interactable = hit.GetComponent<IInteractable>();
+                Collider hit = _interactionHits[i];
+                if (hit == null) continue;
+
+                IInteractable interactable = hit.GetComponent<IInteractable>();
                 if (interactable == null) continue;
 
-                float dist = Vector3.Distance(transform.position, hit.transform.position);
-                if (dist < closestDist)
+                float sqrDistance = (hit.transform.position - origin).sqrMagnitude;
+                if (sqrDistance < closestSqrDistance)
                 {
-                    closestDist = dist;
+                    closestSqrDistance = sqrDistance;
                     closest = interactable;
                 }
+
+                _interactionHits[i] = null;
             }
 
-            if (closest != _nearestInteractable)
+            if (closest == null)
             {
-                _nearestInteractable = closest;
-                if (_nearestInteractable != null)
-                    OnNearInteractable?.Invoke(_nearestInteractable.GetInteractionPrompt());
-                else
-                    OnLeftInteractable?.Invoke();
+                ClearNearestInteractable();
+                return;
             }
-            else if (_nearestInteractable != null)
+
+            _nearestInteractable = closest;
+            string prompt = closest.GetInteractionPrompt();
+
+            if (prompt != _currentPrompt)
             {
-                // Refresh prompt text (it can change dynamically, e.g. stove slot state)
-                OnNearInteractable?.Invoke(_nearestInteractable.GetInteractionPrompt());
+                _currentPrompt = prompt;
+                OnNearInteractable?.Invoke(prompt);
             }
         }
 
         private void HandleInteractionInput()
         {
-            if (Input.GetKeyDown(KeyCode.E) && _nearestInteractable != null)
+            if (!Input.GetKeyDown(KeyCode.E) || _nearestInteractable == null)
             {
-                TransitionTo(PlayerState.Interacting);
-                GameLogger.Verbose(GameLogCategory.Player, $"Interacting with {_nearestInteractable.GetType().Name}.", this);
-                _nearestInteractable.Interact(this);
+                return;
             }
+
+            TransitionTo(PlayerState.Interacting);
+            GameLogger.Verbose(GameLogCategory.Player, $"Interacting with {_nearestInteractable.GetType().Name}.", this);
+            _nearestInteractable.Interact(this);
         }
 
-        private void UpdateHeldItemPosition()
+        private void ClearNearestInteractable()
         {
-            if (HeldIngredient != null)
-                HeldIngredient.transform.localPosition = holdOffset;
+            if (_nearestInteractable == null && string.IsNullOrEmpty(_currentPrompt))
+            {
+                return;
+            }
+
+            _nearestInteractable = null;
+            _currentPrompt = null;
+            OnLeftInteractable?.Invoke();
         }
 
         private void TransitionTo(PlayerState newState)
         {
             if (State == newState) return;
+
             GameLogger.Verbose(GameLogCategory.Player, $"State changed {State} -> {newState}.", this);
             State = newState;
-            // Hook: animation or VFX could be triggered here
         }
 
         private void OnDrawGizmosSelected()

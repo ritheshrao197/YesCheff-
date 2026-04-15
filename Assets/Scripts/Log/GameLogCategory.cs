@@ -1,7 +1,5 @@
-// GameLogCategory.cs
-// Central orchestrator. Drives the high-level game state machine:
-// MainMenu → Playing → Paused → GameOver → (restart)
-
+// File: Assets/Scripts/Log/GameLogCategory.cs
+// Enum for categorising game logs. Used by GameLogger to prefix messages and enable/disable specific categories.
 namespace YesChef.Core
 {
     public enum GameLogCategory

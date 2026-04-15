@@ -1,11 +1,11 @@
-// GameLogger.cs
-// Central orchestrator. Drives the high-level game state machine:
-// MainMenu → Playing → Paused → GameOver → (restart)
-
 using UnityEngine;
 
 namespace YesChef.Core
 {
+    /// <summary>
+    /// Centralised logging utility for the YesChef! project. Provides methods for logging info, warnings, errors and verbose messages, with category prefixes and optional context objects. Log output can be filtered by category and log level via static flags. 
+    /// Usage example: GameLogger.Info(GameLogCategory.Orders, $"New order received: {GameLogger.DescribeOrder(order)}", this);
+    /// </summary>
     public static class GameLogger
     {
         public static bool EnableInfoLogs = true;

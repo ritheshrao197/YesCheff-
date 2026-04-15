@@ -88,7 +88,7 @@ namespace YesChef.UI
                 bool fulfilled = i < _currentOrder.FulfilledIngredients.Count;
 
                 if (label) label.text = fulfilled ? $"✓ {req.displayName}" : req.displayName;
-                if (image) image.color = fulfilled ? Color.green * 0.7f : req.rawColor;
+                if (image) image.color = fulfilled ? Color.green * 0.7f : req.preparedColor;
 
                 _slots.Add(go);
             }

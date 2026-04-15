@@ -3,12 +3,12 @@
 
 using UnityEngine;
 using System.Collections.Generic;
+using YesChef.Stations;
 
 namespace YesChef.UI
 {
     public class FloatingScoreManager : MonoBehaviour
     {
-        public static FloatingScoreManager Instance { get; private set; }
 
         [Header("Pool Settings")]
         [SerializeField] private GameObject floatingScorePrefab;   // UI element on a Screen Space - Overlay canvas
@@ -19,10 +19,16 @@ namespace YesChef.UI
 
         private void Awake()
         {
-            if (Instance == null) Instance = this;
-            else Destroy(gameObject);
-
             BuildPool();
+        }
+        void OnEnable()
+        {
+                        CustomerWindow.OnDeliveryScored += ShowFloatingScore;
+        }
+
+        void OnDisable()
+        {
+                        CustomerWindow.OnDeliveryScored -= ShowFloatingScore;    
         }
 
         private void BuildPool()

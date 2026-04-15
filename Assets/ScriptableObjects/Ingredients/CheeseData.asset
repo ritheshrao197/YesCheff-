@@ -17,5 +17,5 @@ MonoBehaviour:
   scoreValue: 10
   requiresPreparation: 0
   preparationTime: 0
-  rawColor: {r: 1, g: 0.9, b: 0.1, a: 1}
+  rawColor: {r: 1, g: 0.976174, b: 0, a: 1}
   preparedColor: {r: 1, g: 0.9, b: 0.1, a: 1}

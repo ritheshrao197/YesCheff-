@@ -17,5 +17,5 @@ MonoBehaviour:
   scoreValue: 30
   requiresPreparation: 1
   preparationTime: 6
-  rawColor: {r: 0.9, g: 0.3, b: 0.3, a: 1}
-  preparedColor: {r: 0.5, g: 0.1, b: 0, a: 1}
+  rawColor: {r: 1, g: 0.04082808, b: 0, a: 1}
+  preparedColor: {r: 0.4811321, g: 0.13843894, b: 0.14993867, a: 1}

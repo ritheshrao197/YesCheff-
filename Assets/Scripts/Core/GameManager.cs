@@ -1,6 +1,8 @@
 // GameManager.cs
 // Central orchestrator. Drives the high-level game state machine:
 // MainMenu → Playing → Paused → GameOver → (restart)
+// Also handles global events like timer expiry and order completion.
+
 
 using UnityEngine;
 using YesChef.Orders;
@@ -10,7 +12,6 @@ using YesChef.Systems;
 
 namespace YesChef.Core
 {
-    public enum GameState { MainMenu, Playing, Paused, GameOver }
 
     public class GameManager : MonoBehaviour
     {
@@ -19,8 +20,8 @@ namespace YesChef.Core
 
         // ── Inspector refs ────────────────────────────────────────────────
         [Header("Systems (assign in Inspector)")]
-        [SerializeField] private TimerSystem  timerSystem;
-        [SerializeField] private ScoreSystem  scoreSystem;
+        [SerializeField] private TimerSystem timerSystem;
+        [SerializeField] private ScoreSystem scoreSystem;
         [SerializeField] private OrderManager orderManager;
         [SerializeField] private PlayerController playerController;
 
@@ -37,15 +38,15 @@ namespace YesChef.Core
 
         private void OnEnable()
         {
-            TimerSystem.OnTimerExpired      += HandleTimerExpired;
-            OrderManager.OnOrderCompleted   += HandleOrderCompleted;
+            TimerSystem.OnTimerExpired += HandleTimerExpired;
+            OrderManager.OnOrderCompleted += HandleOrderCompleted;
             CustomerWindow.OnDeliveryScored += HandleDeliveryScored;
         }
 
         private void OnDisable()
         {
-            TimerSystem.OnTimerExpired      -= HandleTimerExpired;
-            OrderManager.OnOrderCompleted   -= HandleOrderCompleted;
+            TimerSystem.OnTimerExpired -= HandleTimerExpired;
+            OrderManager.OnOrderCompleted -= HandleOrderCompleted;
             CustomerWindow.OnDeliveryScored -= HandleDeliveryScored;
         }
 
@@ -90,16 +91,28 @@ namespace YesChef.Core
         private void TransitionTo(GameState newState)
         {
             GameLogger.Info(GameLogCategory.Game, $"State transition {CurrentState} -> {newState}.", this);
+            var previousState = CurrentState;
             CurrentState = newState;
 
             switch (newState)
             {
                 case GameState.Playing:
-                    Time.timeScale = 1f;
-                    scoreSystem.ResetScore();
-                    timerSystem.StartTimer();
-                    orderManager.StartOrders();
-                    playerController.SetGameRunning(true);
+                    if (previousState == GameState.Paused)
+                    {
+                        Time.timeScale = 1f;
+                        timerSystem.SetPaused(false);
+                        playerController.SetGameRunning(true);
+
+                    }
+                    else
+                    {
+                        Time.timeScale = 1f;
+                        scoreSystem.ResetScore();
+                        timerSystem.StartTimer();
+                        orderManager.StartOrders();
+                        playerController.SetGameRunning(true);
+
+                    }
                     break;
 
                 case GameState.Paused:
@@ -139,6 +152,7 @@ namespace YesChef.Core
         private void HandleDeliveryScored(int windowIndex, int score)
         {
             GameLogger.Info(GameLogCategory.Score, $"Window {windowIndex} awarded {score} points.", this);
+
             scoreSystem.AddScore(score);
         }
     }

@@ -21,6 +21,7 @@ namespace YesChef.Stations
         [SerializeField] private int windowIndex;
 
         [SerializeField] private OrderManager _orderManager;
+        [SerializeField] private GameObject customerAvatar;
 
         public int WindowIndex => windowIndex;
 
@@ -28,20 +29,26 @@ namespace YesChef.Stations
         {
             base.Awake();
             stationName = "Customer Window";
-            ResolveOrderManager(logIfMissing: false);
         }
 
-        private void Start()
+
+        void OnEnable()
         {
-            ResolveOrderManager(logIfMissing: true);
+
+            OrderManager.OnOrderAssigned += OnOrderAssigned;
+            OrderManager.OnWindowCleared += OnOrdercompleted;
+        }
+
+
+        void OnDisable()
+        {
+            OrderManager.OnOrderAssigned -= OnOrderAssigned;
+            OrderManager.OnWindowCleared -= OnOrdercompleted;
         }
 
         public override void Interact(PlayerController player)
         {
-            if (!ResolveOrderManager(logIfMissing: true))
-            {
-                return;
-            }
+
 
             if (player.HeldIngredient == null)
             {
@@ -91,36 +98,27 @@ namespace YesChef.Stations
 
         public override string GetInteractionPrompt()
         {
-            ResolveOrderManager(logIfMissing: false);
             Order order = _orderManager?.GetOrderAtWindow(windowIndex);
             return order == null ? "No order here" : "[E] Deliver ingredient";
         }
 
-        private bool ResolveOrderManager(bool logIfMissing)
+        private void OnOrderAssigned(Order order, int id)
         {
-            if (_orderManager != null)
+            if (id == windowIndex)
             {
-                return true;
+                customerAvatar.SetActive(true);
             }
 
-#if UNITY_2023_1_OR_NEWER
-            _orderManager = FindFirstObjectByType<OrderManager>();
-#else
-            _orderManager = FindObjectOfType<OrderManager>();
-#endif
-
-            if (_orderManager != null)
-            {
-                LogVerbose("Resolved OrderManager automatically at runtime.");
-                return true;
-            }
-
-            if (logIfMissing)
-            {
-                LogError("OrderManager reference is missing and could not be resolved in the scene.");
-            }
-
-            return false;
         }
+        private void OnOrdercompleted( int id)
+        {
+            LogInfo($"Received order completed event for window {id}.");
+            if (id == windowIndex)
+            {
+                customerAvatar.SetActive(false);
+            }
+
+        }
+
     }
 }
