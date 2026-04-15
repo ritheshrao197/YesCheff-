@@ -13,65 +13,70 @@ namespace YesChef.Stations
     {
         [Header("Refrigerator")]
         [SerializeField] private IngredientRegistry ingredientRegistry;
-        [SerializeField] private GameObject cheesePrefab; 
-        [SerializeField] private GameObject vegetablePrefab; 
-        [SerializeField] private GameObject meatPrefab; 
+        [SerializeField] private GameObject cheesePrefab;
+        [SerializeField] private GameObject vegetablePrefab;
+        [SerializeField] private GameObject meatPrefab;
+
+        // Array indexed by IngredientType (must match enum order)
+        private GameObject[] prefabByType;
+
+        // Cached spawn offset
+        private static readonly Vector3 SpawnOffset = Vector3.up * 0.5f;
 
         protected override void Awake()
         {
             base.Awake();
             stationName = "Refrigerator";
+
+            // Build lookup table once
+            prefabByType = new GameObject[3];
+            prefabByType[(int)IngredientType.Cheese] = cheesePrefab;
+            prefabByType[(int)IngredientType.Vegetable] = vegetablePrefab;
+            prefabByType[(int)IngredientType.Meat] = meatPrefab;
         }
 
         public override void Interact(PlayerController player)
         {
-            LogInfo("Player interacted with refrigerator.");  // Log before validation checks
-            // Player must have empty hands
+            // Fail fast: player already holding something
             if (player.HeldIngredient != null)
             {
                 LogWarning($"Player attempted pickup while already holding {GameLogger.DescribeIngredient(player.HeldIngredient)}.");
                 return;
             }
 
-          
-            // Pick a random ingredient type
+            // Get random ingredient data
             IngredientData data = ingredientRegistry.GetRandom();
-            GameObject ingredientPrefab = null;
-        switch (data.type)
+            if (data == null)
             {
-                case IngredientType.Cheese:
-                    ingredientPrefab = cheesePrefab;
-                    break;
-                case IngredientType.Vegetable:
-                    ingredientPrefab = vegetablePrefab;
-                    break;
-                case IngredientType.Meat:
-                    ingredientPrefab = meatPrefab;
-                    break;
-                default:
-                    LogError($"Unsupported ingredient type: {data.type}");
-                    return;
+                LogError("Ingredient registry returned null data.");
+                return;
             }
-              // Spawn a new ingredient object and give it to the player
-            GameObject go = Instantiate(ingredientPrefab, transform.position + Vector3.up * 0.5f, Quaternion.identity);
-            var ingredient = go.GetComponent<Ingredient>();
 
-            if (ingredient == null)
+            // Get the corresponding prefab using the lookup array
+            int typeIndex = (int)data.type;
+            if (typeIndex < 0 || typeIndex >= prefabByType.Length)
+            {
+                LogError($"Invalid ingredient type index: {typeIndex}");
+                return;
+            }
+
+            GameObject selectedPrefab = prefabByType[typeIndex];
+            if (selectedPrefab == null)
+            {
+                LogError($"No prefab assigned for ingredient type {data.type}");
+                return;
+            }
+
+            // Spawn and initialise the ingredient
+            GameObject go = Instantiate(selectedPrefab, transform.position + SpawnOffset, Quaternion.identity);
+            if (!go.TryGetComponent(out Ingredient ingredient))
             {
                 LogError("Spawned ingredient prefab is missing an Ingredient component.");
                 Destroy(go);
                 return;
             }
 
-            if (data == null)
-            {
-                LogError("Ingredient registry returned no ingredient data.");
-                Destroy(go);
-                return;
-            }
-
             ingredient.Initialise(data);
-
             player.PickUp(ingredient);
             LogInfo($"Dispensed {data.displayName} to player.");
         }

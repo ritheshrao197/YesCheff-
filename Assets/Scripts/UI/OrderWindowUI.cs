@@ -24,6 +24,16 @@ namespace YesChef.UI
         private List<GameObject> _slots = new List<GameObject>();
         private Coroutine _timerRoutine;
 
+        private void OnEnable()
+        {
+            TryStartTimerRoutine();
+        }
+
+        private void OnDisable()
+        {
+            StopTimerRoutine();
+        }
+
         // ── Public API ────────────────────────────────────────────────────
         public void SetOrder(Order order)
         {
@@ -33,15 +43,13 @@ namespace YesChef.UI
             if (ingredientSlotContainer) ingredientSlotContainer.SetActive(true);
 
             RebuildSlots();
-
-            if (_timerRoutine != null) StopCoroutine(_timerRoutine);
-            _timerRoutine = StartCoroutine(UpdateOrderTimer());
+            TryStartTimerRoutine();
         }
 
         public void ClearOrder()
         {
             _currentOrder = null;
-            if (_timerRoutine != null) { StopCoroutine(_timerRoutine); _timerRoutine = null; }
+            StopTimerRoutine();
 
             foreach (var s in _slots) Destroy(s);
             _slots.Clear();
@@ -96,6 +104,30 @@ namespace YesChef.UI
                 }
                 yield return new WaitForSeconds(0.5f);
             }
+
+            _timerRoutine = null;
+        }
+
+        private void TryStartTimerRoutine()
+        {
+            if (_currentOrder == null || !isActiveAndEnabled || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            StopTimerRoutine();
+            _timerRoutine = StartCoroutine(UpdateOrderTimer());
+        }
+
+        private void StopTimerRoutine()
+        {
+            if (_timerRoutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(_timerRoutine);
+            _timerRoutine = null;
         }
     }
 }

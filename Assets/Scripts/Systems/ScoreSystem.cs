@@ -12,7 +12,7 @@ namespace YesChef.Systems
         // ── Events ────────────────────────────────────────────────────────
         public static event Action<int> OnScoreChanged;
         public static event Action<int> OnHighScoreChanged;
-        public static event Action<bool> OnGameEndedWithHighScore; // bool = isNewHighScore
+        public static event Action<bool, int> OnGameEndedWithHighScore; // bool = isNewHighScore, int = finalScore
 
         private const string HighScoreKey = "YesChef_HighScore";
 
@@ -55,7 +55,7 @@ namespace YesChef.Systems
             }
 
             GameLogger.Info(GameLogCategory.Score, $"Game finalised with score {CurrentScore}. New high score: {isNew}.", this);
-            OnGameEndedWithHighScore?.Invoke(isNew);
+            OnGameEndedWithHighScore?.Invoke(isNew, CurrentScore);
         }
     }
 }

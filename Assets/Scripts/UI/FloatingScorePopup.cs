@@ -1,63 +1,34 @@
-// FloatingScorePopup.cs
-// Pooled UI element that floats upward and fades out.
-// Called by UIManager; returns itself to the pool via callback.
-
-using System;
-using System.Collections;
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
 
-namespace YesChef.UI
+public class FloatingScorePopup : MonoBehaviour
 {
-    [RequireComponent(typeof(RectTransform))]
-    public class FloatingScorePopup : MonoBehaviour
+    [SerializeField] private TMP_Text textComponent;
+    [SerializeField] private float lifetime = 1.5f;
+    [SerializeField] private AnimationCurve moveCurve; // optional
+
+    public void Show(string text, Color color, System.Action onComplete = null)
     {
-        [SerializeField] private TMP_Text label;
-        [SerializeField] private float    floatSpeed  = 60f;
-        [SerializeField] private float    lifetime    = 2f;
+        textComponent.text = text;
+        textComponent.color = color;
+        gameObject.SetActive(true);
+        StartCoroutine(AnimateAndFade(onComplete));
+    }
 
-        private RectTransform _rt;
-        private Action _onComplete;
-
-        private void Awake() => _rt = GetComponent<RectTransform>();
-
-        public void Show(string text, Color color, Vector2 anchoredPos, Action onComplete)
+    private System.Collections.IEnumerator AnimateAndFade(System.Action onComplete)
+    {
+        // Simple fade out and scale, or move up slightly
+        float elapsed = 0f;
+        Color originalColor = textComponent.color;
+        Vector3 startPos = transform.localPosition;
+        while (elapsed < lifetime)
         {
-            _onComplete = onComplete;
-
-            if (label) { label.text = text; label.color = color; }
-            _rt.anchoredPosition = anchoredPos;
-
-            StopAllCoroutines();
-            StartCoroutine(AnimateRoutine());
+            elapsed += Time.deltaTime;
+            float t = elapsed / lifetime;
+            transform.localPosition = startPos + Vector3.up * (t * 30f); // move up 30 units
+            textComponent.color = new Color(originalColor.r, originalColor.g, originalColor.b, 1f - t);
+            yield return null;
         }
-
-        private IEnumerator AnimateRoutine()
-        {
-            float elapsed = 0f;
-            Color startColor = label ? label.color : Color.white;
-            Vector2 startPos = _rt.anchoredPosition;
-
-            while (elapsed < lifetime)
-            {
-                elapsed += Time.deltaTime;
-                float t = elapsed / lifetime;
-
-                // Float upward
-                _rt.anchoredPosition = startPos + Vector2.up * floatSpeed * elapsed;
-
-                // Fade out in second half
-                if (label)
-                {
-                    float alpha = t < 0.5f ? 1f : Mathf.Lerp(1f, 0f, (t - 0.5f) / 0.5f);
-                    label.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
-                }
-
-                yield return null;
-            }
-
-            _onComplete?.Invoke();
-        }
+        onComplete?.Invoke();
     }
 }
