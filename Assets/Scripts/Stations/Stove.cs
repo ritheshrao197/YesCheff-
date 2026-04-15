@@ -139,7 +139,7 @@ namespace YesChef.Stations
             LogInfo($"Cooking finished in slot {slotIndex}: {GameLogger.DescribeIngredient(_slots[slotIndex])}.");
         }
 
-        public void ResetStation()
+        public override void ResetStation()
         {
             for (int i = 0; i < slotCount; i++)
             {
