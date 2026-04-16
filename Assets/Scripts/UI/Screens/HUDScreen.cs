@@ -29,23 +29,29 @@ namespace YesChef.UI
         [SerializeField] private Button pauseButton;
         [SerializeField] private GameManager gameManager;
 
+        // Cached state to avoid redundant UI updates
+        private int lastScore = -1;
+        private int lastHighScore = -1;
+        private string lastTimerString = "";
+        private Color lastTimerColor = Color.white;
+        private string lastHeldItemString = "";
+        private bool isPromptActive = false;
+        private bool isHeldItemActive = false;
+
         protected override void Awake()
         {
             base.Awake();
 
             if (gameManager == null)
-            {
                 gameManager = FindObjectOfType<GameManager>();
-            }
         }
 
         private void OnEnable()
         {
             if (pauseButton != null)
-            {
                 pauseButton.onClick.AddListener(OnPauseClicked);
-            }
 
+            // Subscribe to game events
             GameEvents.TimerTicked += UpdateTimer;
             GameEvents.ScoreChanged += UpdateScore;
             GameEvents.HighScoreChanged += UpdateHighScore;
@@ -53,15 +59,15 @@ namespace YesChef.UI
             GameEvents.InteractionPromptCleared += HidePrompt;
             GameEvents.PlayerPickedUpIngredient += ShowHeldItem;
             GameEvents.PlayerDroppedIngredient += HideHeldItem;
+
+            // Reset visual state (but do NOT overwrite actual score/highscore values)
             ResetScreen();
         }
 
         private void OnDisable()
         {
             if (pauseButton != null)
-            {
                 pauseButton.onClick.RemoveListener(OnPauseClicked);
-            }
 
             GameEvents.TimerTicked -= UpdateTimer;
             GameEvents.ScoreChanged -= UpdateScore;
@@ -77,72 +83,117 @@ namespace YesChef.UI
             gameManager?.PauseGame();
         }
 
+       
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.Escape))
+                OnPauseClicked();
+        }
+
         private void UpdateTimer(float remaining)
         {
-            if (timerText == null)
-            {
-                return;
-            }
+            if (timerText == null) return;
 
             int mins = Mathf.FloorToInt(remaining / SecondsPerMinute);
             int secs = Mathf.FloorToInt(remaining % SecondsPerMinute);
-            timerText.text = string.Format(TimerFormat, mins, secs);
-            timerText.color = remaining <= LowTimeWarningSeconds ? Color.red : Color.white;
+            string newTimerString = string.Format(TimerFormat, mins, secs);
+            Color newColor = remaining <= LowTimeWarningSeconds ? Color.red : Color.white;
+
+            // Only update text and color if they actually changed
+            if (newTimerString != lastTimerString)
+            {
+                timerText.text = newTimerString;
+                lastTimerString = newTimerString;
+            }
+            if (newColor != lastTimerColor)
+            {
+                timerText.color = newColor;
+                lastTimerColor = newColor;
+            }
         }
 
-        private void UpdateScore(int score) => SetText(scoreText, string.Format(ScoreFormat, score));
-        private void UpdateHighScore(int highScore) => SetText(highScoreText, string.Format(BestScoreFormat, highScore));
+        private void UpdateScore(int score)
+        {
+            if (scoreText == null) return;
+            if (score == lastScore) return; // No change, skip update
+
+            scoreText.text = string.Format(ScoreFormat, score);
+            lastScore = score;
+        }
+
+        private void UpdateHighScore(int highScore)
+        {
+            if (highScoreText == null) return;
+            if (highScore == lastHighScore) return;
+
+            highScoreText.text = string.Format(BestScoreFormat, highScore);
+            lastHighScore = highScore;
+        }
 
         private void ShowPrompt(string prompt)
         {
-            if (interactionPromptText == null)
-            {
-                return;
-            }
+            if (interactionPromptText == null) return;
 
             interactionPromptText.text = prompt;
-            interactionPromptText.gameObject.SetActive(true);
+            if (!isPromptActive)
+            {
+                interactionPromptText.gameObject.SetActive(true);
+                isPromptActive = true;
+            }
         }
 
         private void HidePrompt()
         {
-            if (interactionPromptText != null)
-            {
-                interactionPromptText.gameObject.SetActive(false);
-            }
+            if (interactionPromptText == null) return;
+            if (!isPromptActive) return;
+
+            interactionPromptText.gameObject.SetActive(false);
+            isPromptActive = false;
         }
 
         private void ShowHeldItem(Ingredient ingredient)
         {
-            if (heldItemText == null || ingredient == null)
+            if (heldItemText == null || ingredient == null) return;
+
+            string newHeldString = string.Format(HeldItemFormat, ingredient.Data.displayName, ingredient.State);
+            if (newHeldString != lastHeldItemString)
             {
-                return;
+                heldItemText.text = newHeldString;
+                lastHeldItemString = newHeldString;
             }
 
-            heldItemText.text = string.Format(HeldItemFormat, ingredient.Data.displayName, ingredient.State);
-            heldItemText.gameObject.SetActive(true);
+            if (!isHeldItemActive)
+            {
+                heldItemText.gameObject.SetActive(true);
+                isHeldItemActive = true;
+            }
         }
 
         private void HideHeldItem()
         {
-            if (heldItemText != null)
-            {
-                heldItemText.gameObject.SetActive(false);
-            }
+            if (heldItemText == null) return;
+            if (!isHeldItemActive) return;
+
+            heldItemText.gameObject.SetActive(false);
+            isHeldItemActive = false;
+            lastHeldItemString = ""; // Reset so next pickup won't compare stale value
         }
 
-        private static void SetText(TMP_Text text, string value)
-        {
-            if (text != null)
-            {
-                text.text = value;
-            }
-        }
         public override void ResetScreen()
         {
-            UpdateScore(0);
+            // Reset only the visual state – do NOT overwrite actual score/highscore values.
+            // The real values will be pushed via ScoreChanged/HighScoreChanged events shortly.
+            if (scoreText != null && lastScore != 0)
+            {
+                scoreText.text = string.Format(ScoreFormat, 0);
+                lastScore = 0;
+            }
             HidePrompt();
             HideHeldItem();
+
+            // Timer and highscore will be updated by their respective events.
+            // Optionally reset cached timer string to force first update.
+            lastTimerString = "";
         }
     }
 }
