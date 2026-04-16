@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1cad6d43cdc85a14085c67629a35c1c3, type: 3}
   m_Name: PlayerConfig
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  moveSpeed: 10
   interactionRadius: 1.5
   holdOffset: {x: 0.5, y: 0.8, z: 0.5}

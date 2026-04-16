@@ -20,6 +20,6 @@ MonoBehaviour:
       respawnDelay: 5
       initialSpawnDelayMin: 0.5
       initialSpawnDelayMax: 2
-      minIngredientsPerOrder: 1
-      maxIngredientsPerOrder: 1
+      minIngredientsPerOrder: 2
+      maxIngredientsPerOrder: 3
       minIngredientCountChance: 0.5
