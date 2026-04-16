@@ -55,7 +55,7 @@ Assets/
 
 ### Controls
 - **WASD / Arrow Keys**: Move the player.
-- **E / Space**: Interact with stations (grab ingredients, place on table/stove, serve).
+- **E**: Interact with stations (grab ingredients, place on table/stove, serve).
 - **Escape**: Pause the game.
 
 ## 🛠️ Extending the Game
