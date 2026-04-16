@@ -25,7 +25,7 @@ namespace YesChef.Stations
 
         public virtual string GetInteractionPrompt()
         {
-            return $"[E] {stationName}";
+            return $"[E] / [Space] {stationName}";
         }
         public virtual void ResetStation()
         {

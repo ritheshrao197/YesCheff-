@@ -12,8 +12,8 @@ namespace YesChef.Stations
 {
     public class Stove : BaseStation
     {
-        private const string PickupPrompt = "[E] Pick up prepared ingredient";
-        private const string PlacePrompt = "[E] Place ingredient to cook";
+        private const string PickupPrompt = "[E] / [Space] Pick up prepared ingredient";
+        private const string PlacePrompt = "[E] / [Space] Place ingredient to cook";
         private const string FullPrompt = "Stove full";
 
         [SerializeField] private float defaultCookTime = 6f;

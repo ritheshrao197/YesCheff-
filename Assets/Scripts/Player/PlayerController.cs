@@ -173,15 +173,13 @@ namespace YesChef.Player
 
         private void HandleInteractionInput()
         {
-
-            if (!Input.GetKeyDown(KeyCode.E)|| _nearestInteractable == null)
+            // Check if either E or Space was pressed this frame, and there's a valid interactable nearby
+            if ((Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space)) && _nearestInteractable != null)
             {
-                return;
+                TransitionTo(PlayerState.Interacting);
+                GameLogger.Verbose(GameLogCategory.Player, $"Interacting with {_nearestInteractable.GetType().Name}.", this);
+                _nearestInteractable.Interact(this);
             }
-           
-            TransitionTo(PlayerState.Interacting);
-            GameLogger.Verbose(GameLogCategory.Player, $"Interacting with {_nearestInteractable.GetType().Name}.", this);
-            _nearestInteractable.Interact(this);
         }
 
         private void ClearNearestInteractable()

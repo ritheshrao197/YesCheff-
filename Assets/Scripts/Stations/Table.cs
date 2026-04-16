@@ -12,9 +12,9 @@ namespace YesChef.Stations
     public class Table : BaseStation
     {
         private static readonly Vector3 IngredientPlacementOffset = Vector3.up * 0.5f;
-        private const string PickupPrompt = "[E] Pick up prepared ingredient";
+        private const string PickupPrompt = "[E] / [Space] Pick up prepared ingredient";
         private const string ChoppingPrompt = "Preparing...";
-        private const string PlacePrompt = "[E] Place ingredient to prep";
+        private const string PlacePrompt = "[E] / [Space] Place ingredient to prep";
 
         [SerializeField] private float defaultChopTime = 2f;
 

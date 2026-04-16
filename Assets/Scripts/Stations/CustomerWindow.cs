@@ -70,7 +70,7 @@ namespace YesChef.Stations
         public override string GetInteractionPrompt()
         {
             return orderManager != null && orderManager.GetOrderAtWindow(windowIndex) != null
-                ? "[E] Deliver ingredient"
+                ? "[E] / [Space] Deliver ingredient"
                 : "No order here";
         }
 

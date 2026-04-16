@@ -31,7 +31,7 @@ namespace YesChef.Stations
 
         public override string GetInteractionPrompt()
         {
-            return "[E] Throw away ingredient";
+            return "[E] / [Space] Throw away ingredient";
         }
     }
 }

@@ -8,7 +8,7 @@ namespace YesChef.Stations
 {
     public class Refrigerator : BaseStation
     {
-        private const string PickupPrompt = "[E] Pick up ingredient";
+        private const string PickupPrompt = "[E] / [Space] Pick up ingredient";
         private static readonly Vector3 SpawnOffset = Vector3.up * 0.5f;
 
         [Header("Refrigerator")]
